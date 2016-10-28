@@ -115,7 +115,8 @@ var _ = Describe("S3Proxy test suite", func() {
 
 			body, err := ioutil.ReadAll(rr.Body)
 			Expect(err).To(BeNil())
-			Expect(len(body)).To(Equal(3145728))
+			Expect(len(body) > 2000000).To(BeTrue())
+			Expect(len(body) < 4000000).To(BeTrue())
 		})
 	})
 })

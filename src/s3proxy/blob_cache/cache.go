@@ -3,6 +3,7 @@ package blob_cache
 import (
 	"s3proxy/source"
 	"s3proxy/faulting"
+	"github.com/karlseguin/ccache"
 )
 
 type BlobCache interface {
@@ -13,6 +14,7 @@ type BlobCache interface {
 type S3Cache struct {
 	source			source.UpstreamSource
 	cachedFiles		map[string]*CacheEntry
+	blockCache		*ccache.Cache
 }
 
 type CacheEntry struct {
@@ -24,10 +26,13 @@ type CacheEntry struct {
 }
 
 func NewS3Cache(s source.UpstreamSource) *S3Cache {
+	blockCache := ccache.New(ccache.Configure().MaxSize(1000).ItemsToPrune(100))
+
 	c := make(map[string]*CacheEntry)
 	return &S3Cache{
 		source: s,
 		cachedFiles: c,
+		blockCache: blockCache,
 	}
 }
 

@@ -78,32 +78,32 @@ var _ = Describe("When faulting in a file", func() {
 			Expect(sinkData).To(Equal(ss.Content))
 		})
 
-		It("has correct number of backing blocks", func() {
-			ss := fakes.NewIntegerStreamingSource(1000)
-			cacheFile, err := ioutil.TempFile("", "cached2")
-			Expect(err).To(BeNil())
-			defer os.Remove(cacheFile.Name())
-			cacheFile.Close()
-
-			ff, err := faulting.NewFaultingFile(ss, cacheFile.Name(), int64(len(ss.Content)))
-			Expect(err).To(BeNil())
-
-			ff.SetBlockSize(11)
-
-			var wg sync.WaitGroup
-			wg.Add(1)
-			ff.Stream(&wg)
-			wg.Wait()
-
-			Expect(ff.UpstreamErr).To(BeNil())
-
-			blockCount := len(ff.GetBlocks())
-			Expect(blockCount).To(Equal(354))
-
-			// Check the last block
-			lastLen := len(ss.Content) - (353 * 11)
-			Expect(string(ff.GetBlocks()[blockCount-1][:lastLen])).To(Equal("98 999 "))
-		})
+		//It("has correct number of backing blocks", func() {
+		//	ss := fakes.NewIntegerStreamingSource(1000)
+		//	cacheFile, err := ioutil.TempFile("", "cached2")
+		//	Expect(err).To(BeNil())
+		//	defer os.Remove(cacheFile.Name())
+		//	cacheFile.Close()
+		//
+		//	ff, err := faulting.NewFaultingFile(ss, cacheFile.Name(), int64(len(ss.Content)))
+		//	Expect(err).To(BeNil())
+		//
+		//	ff.SetBlockSize(11)
+		//
+		//	var wg sync.WaitGroup
+		//	wg.Add(1)
+		//	ff.Stream(&wg)
+		//	wg.Wait()
+		//
+		//	Expect(ff.UpstreamErr).To(BeNil())
+		//
+		//	blockCount := len(ff.GetBlocks())
+		//	Expect(blockCount).To(Equal(354))
+		//
+		//	// Check the last block
+		//	lastLen := len(ss.Content) - (353 * 11)
+		//	Expect(string(ff.GetBlocks()[blockCount-1][:lastLen])).To(Equal("98 999 "))
+		//})
 
 		It("FaultingReader wraps FaultingFile", func() {
 			ss := fakes.NewIntegerStreamingSource(1000)

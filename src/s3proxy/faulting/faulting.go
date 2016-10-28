@@ -6,7 +6,8 @@ import (
 	"time"
 	"os"
 	"path"
-	"fmt"
+	"github.com/karlseguin/ccache"
+	"strconv"
 )
 
 const BLOCK_SIZE = 1024 * 1024
@@ -61,7 +62,7 @@ type FaultingFile struct {
 	src				io.Reader
 	dst             string
 	dstFile         *os.File
-	blocks			map[int][]byte
+	blocks			*ccache.Cache
 	blockCount      int
 	Size			int64
 	UpstreamErr		error
@@ -82,10 +83,10 @@ func NewFaultingFile(src io.Reader, dst string, size int64) (*FaultingFile, erro
 		return nil, err
 	}
 
-	b := make(map[int][]byte)
+	cache := ccache.New(ccache.Configure().MaxSize(1000).ItemsToPrune(100))
 
 	return &FaultingFile{
-		blocks: b,
+		blocks: cache,
 		src: src,
 		dst: dst,
 		Size: size,
@@ -113,24 +114,34 @@ func (this *FaultingFile) GetBlock(i int) ([]byte, error) {
 		}
 	}
 
-	if buf, ok := this.blocks[i]; ok {
-		return buf, nil
+	buf, err := this.blocks.Fetch(strconv.Itoa(i), time.Second, func() (interface{}, error) {return this.faultInBlock(i)})
+
+	if err != nil {
+		return nil, err
 	}
 
-	this.faultInBlock(i)
-	return this.blocks[i], nil
+	return buf.Value().([]byte), nil
 }
 
-func (this *FaultingFile) GetBlocks() map[int][]byte {
-	return this.blocks
+func (this *FaultingFile) getCachedBlock(i int) []byte {
+	buf := this.blocks.Get(strconv.Itoa(i))
+	if buf != nil {
+		if byteBuf, ok := buf.Value().([]byte); ok {
+			return byteBuf
+		} else {
+			// TODO: Should just log an error and return nil
+			panic("Cache did not contain []byte")
+		}
+	}
+	return nil
 }
 
-func (this *FaultingFile) faultInBlock(i int) error {
+func (this *FaultingFile) faultInBlock(i int) ([]byte, error) {
 	buf := make([]byte, this.blockSize)
 
 	dst, err := os.Open(this.dst)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer dst.Close()
 
@@ -143,11 +154,11 @@ func (this *FaultingFile) faultInBlock(i int) error {
 			break
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 		bytesRead += n
 	}
-	return nil
+	return buf, nil
 }
 
 func (this *FaultingFile) readAll(wg *sync.WaitGroup) {
@@ -171,23 +182,20 @@ func (this *FaultingFile) readAll(wg *sync.WaitGroup) {
 		m, err := io.ReadFull(this.src, buf)
 		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 			this.UpstreamErr = err
-			fmt.Printf("-->> %v\n", err)
 			break
 		}
 
 		n, err := dstFile.Write(buf[:m])
 		if err != nil {
 			this.UpstreamErr = err
-			fmt.Printf("-->> %v\n", err)
 			break
 		}
 
 		bytesRead += int64(m)
 		bytesWritten += int64(n)
 
-		this.blocks[this.blockCount] = buf
+		this.blocks.Set(strconv.Itoa(this.blockCount), buf, 100)
 		this.blockCount++
-		fmt.Printf("-->> bytesRead: %d\n", bytesRead)
 	}
 	if wg != nil {
 		wg.Done()

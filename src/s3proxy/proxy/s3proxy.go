@@ -19,7 +19,7 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 	r, err := this.cache.Get(req.URL.Path)
 	defer r.Close()
 
-	fmt.Printf("--->> requesting %s\n", req.URL.Path)
+	fmt.Printf("-> Requesting %s\n", req.URL.Path)
 
 	if err != nil {
 		//if awsErr, ok := err.(awserr.Error); ok {
