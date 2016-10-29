@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"strings"
 	"path"
+	"fmt"
 )
 
 type S3Source struct{
@@ -35,12 +36,10 @@ func (this S3Source) Get(uri string) (*faulting.FaultingFile, *Meta, error) {
 		Key:    aws.String(object),
 	}
 
-	resp, err := svc.HeadObject(headParams)
+	headResp, err := svc.HeadObject(headParams)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	//pReader, pWriter := io.Pipe()
 
 	params := &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
@@ -49,21 +48,23 @@ func (this S3Source) Get(uri string) (*faulting.FaultingFile, *Meta, error) {
 
 	getResp, err := svc.GetObject(params)
 
+	// TODO: Write a Reader which implements ReadAt but assumes the offset will always be increasing
+	//pReader, pWriter := io.Pipe()
 	//// Create a downloader with the session and default options
 	//downloader := s3manager.NewDownloader(this.session)
 	//go downloader.Download(pWriter, params)
 
 	bucketObject := path.Join(bucket, object)
-	ff, err := faulting.NewFaultingFile(getResp.Body, bucketObject, *resp.ContentLength)
+	ff, err := faulting.NewFaultingFile(getResp.Body, bucketObject, *headResp.ContentLength)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	ff.Stream(nil)
 	meta := &Meta{
-		Size: *resp.ContentLength,
-		LastModified: *resp.LastModified,
-		ContentType: *resp.ContentType,
+		Size: *headResp.ContentLength,
+		LastModified: *headResp.LastModified,
+		ContentType: *headResp.ContentType,
 	}
 
 	return ff, meta, nil

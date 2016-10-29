@@ -4,10 +4,12 @@ import (
 	"s3proxy/source"
 	"s3proxy/faulting"
 	"github.com/karlseguin/ccache"
+	"fmt"
 )
 
 type BlobCache interface {
 	Get(string) (*faulting.FaultingReader, error)
+	GetMeta(string) *source.Meta
 	Invalidate(string)
 }
 
@@ -52,11 +54,20 @@ func (this S3Cache) Get(uri string) (*faulting.FaultingReader, error) {
 		faultingFile: faultingFile,
 	}
 
+	fmt.Printf("Put: %+v\n", *entry)
+	fmt.Printf("Put Meta: %+v\n", *entry.meta)
+
 	this.cachedFiles[uri] = entry
 
 	return faulting.NewFaultingReader(faultingFile), nil
 }
 
-func (this S3Cache) Invalidate(uri string) {
+func (this S3Cache) GetMeta(uri string) *source.Meta {
+	if entry, ok := this.cachedFiles[uri]; ok {
+		return entry.meta
+	}
+	return nil
+}
 
+func (this S3Cache) Invalidate(uri string) {
 }
