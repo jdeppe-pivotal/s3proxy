@@ -7,7 +7,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"strings"
 	"path"
-	"fmt"
 )
 
 type S3Source struct{

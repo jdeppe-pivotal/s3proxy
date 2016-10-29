@@ -4,7 +4,7 @@ import (
 	"s3proxy/source"
 	"s3proxy/faulting"
 	"github.com/karlseguin/ccache"
-	"fmt"
+	"sync"
 )
 
 type BlobCache interface {
@@ -17,6 +17,7 @@ type S3Cache struct {
 	source			source.UpstreamSource
 	cachedFiles		map[string]*CacheEntry
 	blockCache		*ccache.Cache
+	lock            sync.Mutex
 }
 
 type CacheEntry struct {
@@ -28,19 +29,25 @@ type CacheEntry struct {
 }
 
 func NewS3Cache(s source.UpstreamSource) *S3Cache {
-	blockCache := ccache.New(ccache.Configure().MaxSize(1000).ItemsToPrune(100))
-
 	c := make(map[string]*CacheEntry)
 	return &S3Cache{
 		source: s,
 		cachedFiles: c,
-		blockCache: blockCache,
 	}
 }
 
 func (this S3Cache) Get(uri string) (*faulting.FaultingReader, error) {
-	if candidate, ok := this.cachedFiles[uri]; ok {
-		return faulting.NewFaultingReader(candidate.faultingFile), nil
+	if entry, ok := this.cachedFiles[uri]; ok {
+		return faulting.NewFaultingReader(entry.faultingFile), nil
+	}
+
+	this.lock.Lock()
+	defer this.lock.Unlock()
+
+	// Once we have the lock, make sure someone else didn't already do this
+	// while we were waiting.
+	if entry, ok := this.cachedFiles[uri]; ok {
+		return faulting.NewFaultingReader(entry.faultingFile), nil
 	}
 
 	faultingFile, meta, err := this.source.Get(uri)
@@ -53,9 +60,6 @@ func (this S3Cache) Get(uri string) (*faulting.FaultingReader, error) {
 		meta: meta,
 		faultingFile: faultingFile,
 	}
-
-	fmt.Printf("Put: %+v\n", *entry)
-	fmt.Printf("Put Meta: %+v\n", *entry.meta)
 
 	this.cachedFiles[uri] = entry
 
