@@ -61,6 +61,10 @@ func (this *FakeUpstreamSource) Get(uri string) (*faulting.FaultingFile, *source
 	return ff, meta, nil
 }
 
+func (this *FakeUpstreamSource) GetMeta(uri string) *source.Meta {
+	return &source.Meta{}
+}
+
 type GeneratedContentReader interface {
 	io.Reader
 	Size()      int64
@@ -106,9 +110,13 @@ func (this *ErroringSource) Read(p []byte) (int, error) {
 	n := copy(p, this.Content[this.offset:])
 	this.offset += n
 
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	return n, nil
+}
+
+func (this *ErroringSource) GetMeta(uri string) *source.Meta {
+	return &source.Meta{}
 }
 
 type IntegerSequenceSource struct {
@@ -153,3 +161,8 @@ func (this *IntegerSequenceSource) Close() error {
 	this.closed = true
 	return nil
 }
+
+func (this *IntegerSequenceSource) GetMeta(uri string) *source.Meta {
+	return &source.Meta{}
+}
+

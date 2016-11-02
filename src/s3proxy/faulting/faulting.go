@@ -6,7 +6,7 @@ import (
 	"time"
 	"os"
 	"path"
-	"github.com/karlseguin/ccache"
+	"github.com/jdeppe-pivotal/ccache"
 	"strconv"
 )
 
@@ -118,14 +118,7 @@ func (this *FaultingFile) GetBlock(i int) ([]byte, error) {
 		return nil, err
 	}
 
-	var buf []byte
-	if item, ok := entry.(*ccache.Item); ok {
-		buf = item.Value().([]byte)
-	} else {
-		panic("This should never happen")
-	}
-
-	return buf, nil
+	return entry.Value().([]byte), nil
 }
 
 func (this *FaultingFile) getCachedBlock(i int) []byte {

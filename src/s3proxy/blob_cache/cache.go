@@ -86,7 +86,7 @@ func (this S3Cache) validateEntry(uri string) {
 	}
 
 	// Has this entry expired?
-	if entry.meta.Expires > time.Now() {
+	if entry.meta.Expires.After(time.Now()) {
 		return
 	}
 
