@@ -9,18 +9,21 @@ import (
 	"fmt"
 	"errors"
 	"path"
+	"github.com/jdeppe-pivotal/ccache"
 	"time"
 )
 
 type FakeUpstreamSource struct {
 	baseDir        string
 	cacheBlockSize int
+	blockCache     *ccache.LayeredCache
 }
 
 func NewFakeUpstreamSource(baseDir string) *FakeUpstreamSource {
 	return &FakeUpstreamSource{
 		baseDir: baseDir,
 		cacheBlockSize: 0,
+		blockCache: ccache.Layered(ccache.Configure().MaxSize(100)),
 	}
 }
 
@@ -42,7 +45,7 @@ func (this *FakeUpstreamSource) Get(uri string) (*faulting.FaultingFile, *source
 		r = NewIntegerStreamingSource(size)
 	}
 
-	ff, err := faulting.NewFaultingFile(r, cachedFile, r.Size())
+	ff, err := faulting.NewFaultingFile(r, cachedFile, r.Size(), this.blockCache.GetOrCreateSecondaryCache(uri))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -103,7 +106,7 @@ func (this *ErroringSource) Read(p []byte) (int, error) {
 	n := copy(p, this.Content[this.offset:])
 	this.offset += n
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 
 	return n, nil
 }

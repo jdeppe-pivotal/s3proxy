@@ -59,18 +59,18 @@ func (this *FaultingReader) Size() int64 {
 }
 
 type FaultingFile struct {
-	src				io.Reader
-	dst             string
-	dstFile         *os.File
-	blocks			*ccache.Cache
-	blockCount      int
-	Size			int64
-	UpstreamErr		error
-	lock            sync.Mutex
-	blockSize		int
+	src         io.Reader
+	dst         string
+	dstFile     *os.File
+	blockCache  *ccache.SecondaryCache
+	blockCount  int
+	Size        int64
+	UpstreamErr error
+	lock        sync.Mutex
+	blockSize   int
 }
 
-func NewFaultingFile(src io.Reader, dst string, size int64) (*FaultingFile, error) {
+func NewFaultingFile(src io.Reader, dst string, size int64, cache *ccache.SecondaryCache) (*FaultingFile, error) {
 	// Make sure we have a directory for our cached file
 	err := os.MkdirAll(path.Dir(dst), 0755)
 	if err != nil {
@@ -83,10 +83,8 @@ func NewFaultingFile(src io.Reader, dst string, size int64) (*FaultingFile, erro
 		return nil, err
 	}
 
-	cache := ccache.New(ccache.Configure().MaxSize(1000).ItemsToPrune(100))
-
 	return &FaultingFile{
-		blocks: cache,
+		blockCache: cache,
 		src: src,
 		dst: dst,
 		Size: size,
@@ -114,17 +112,24 @@ func (this *FaultingFile) GetBlock(i int) ([]byte, error) {
 		}
 	}
 
-	buf, err := this.blocks.Fetch(strconv.Itoa(i), time.Second, func() (interface{}, error) {return this.faultInBlock(i)})
+	entry, err := this.blockCache.Fetch(strconv.Itoa(i), time.Second, func() (interface{}, error) {return this.faultInBlock(i)})
 
 	if err != nil {
 		return nil, err
 	}
 
-	return buf.Value().([]byte), nil
+	var buf []byte
+	if item, ok := entry.(*ccache.Item); ok {
+		buf = item.Value().([]byte)
+	} else {
+		panic("This should never happen")
+	}
+
+	return buf, nil
 }
 
 func (this *FaultingFile) getCachedBlock(i int) []byte {
-	buf := this.blocks.Get(strconv.Itoa(i))
+	buf := this.blockCache.Get(strconv.Itoa(i))
 	if buf != nil {
 		if byteBuf, ok := buf.Value().([]byte); ok {
 			return byteBuf
@@ -194,7 +199,7 @@ func (this *FaultingFile) readAll(wg *sync.WaitGroup) {
 		bytesRead += int64(m)
 		bytesWritten += int64(n)
 
-		this.blocks.Set(strconv.Itoa(this.blockCount), buf, 100)
+		this.blockCache.Set(strconv.Itoa(this.blockCount), buf, 100)
 		this.blockCount++
 	}
 	if wg != nil {

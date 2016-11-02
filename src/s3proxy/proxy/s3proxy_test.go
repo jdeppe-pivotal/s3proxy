@@ -104,19 +104,19 @@ var _ = Describe("S3Proxy test suite", func() {
 			p := proxy.NewS3Proxy(cache)
 
 			handler := http.HandlerFunc(p.Handler)
-			req, err := http.NewRequest("GET", "/error/1000000", nil)
+			req, err := http.NewRequest("GET", "/error/100000", nil)
 			Expect(err).To(BeNil())
 
 			rr := httptest.NewRecorder()
 			handler.ServeHTTP(rr, req)
 			Expect(rr.Code).To(Equal(http.StatusOK))
 
-			Expect(rr.Header().Get("Content-length")).To(Equal("6888890"))
+			Expect(rr.Header().Get("Content-length")).To(Equal("588890"))
 
 			body, err := ioutil.ReadAll(rr.Body)
 			Expect(err).To(BeNil())
-			Expect(len(body) > 2000000).To(BeTrue())
-			Expect(len(body) < 4000000).To(BeTrue())
+			Expect(len(body) > 200000).To(BeTrue())
+			Expect(len(body) < 400000).To(BeTrue())
 		})
 	})
 })

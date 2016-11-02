@@ -19,6 +19,12 @@ func NewS3Proxy(c blob_cache.BlobCache) *S3Proxy {
 func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 	fmt.Printf("-> Requesting %s\n", req.URL.Path)
 
+	// Ugghhh. Hardcode...
+	if req.URL.Path == "/favicon.ico" {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
 	r, err := this.cache.Get(req.URL.Path)
 	meta := this.cache.GetMeta(req.URL.Path)
 	defer r.Close()
@@ -38,8 +44,8 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-length", fmt.Sprintf("%d", r.Size()))
 	if meta != nil {
+		w.Header().Set("Content-length", fmt.Sprintf("%d", meta.Size))
 		w.Header().Set("Content-type", meta.ContentType)
 	}
 

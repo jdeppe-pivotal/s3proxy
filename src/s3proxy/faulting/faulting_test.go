@@ -9,6 +9,7 @@ import (
 	"os"
 	"s3proxy/faulting"
 	"s3proxy/fakes"
+	"github.com/jdeppe-pivotal/ccache"
 )
 
 var _ = Describe("When faulting in a file", func() {
@@ -61,7 +62,9 @@ var _ = Describe("When faulting in a file", func() {
 			defer os.Remove(cacheFile.Name())
 			cacheFile.Close()
 
-			ff, err := faulting.NewFaultingFile(ss, cacheFile.Name(), int64(len(ss.Content)))
+			cache := ccache.Layered(ccache.Configure().MaxSize(100))
+			sCache := cache.GetOrCreateSecondaryCache("primary")
+			ff, err := faulting.NewFaultingFile(ss, cacheFile.Name(), int64(len(ss.Content)), sCache)
 			Expect(err).To(BeNil())
 
 			ff.SetBlockSize(3)
@@ -112,7 +115,9 @@ var _ = Describe("When faulting in a file", func() {
 			defer os.Remove(cacheFile.Name())
 			cacheFile.Close()
 
-			ff, err := faulting.NewFaultingFile(ss, cacheFile.Name(), int64(len(ss.Content)))
+			cache := ccache.Layered(ccache.Configure().MaxSize(100))
+			sCache := cache.GetOrCreateSecondaryCache("primary")
+			ff, err := faulting.NewFaultingFile(ss, cacheFile.Name(), int64(len(ss.Content)), sCache)
 			Expect(err).To(BeNil())
 
 			ff.SetBlockSize(11)
@@ -139,7 +144,9 @@ var _ = Describe("When faulting in a file", func() {
 			defer os.Remove(cacheFile.Name())
 			cacheFile.Close()
 
-			ff, err := faulting.NewFaultingFile(ss, cacheFile.Name(), int64(len(ss.Content)))
+			cache := ccache.Layered(ccache.Configure().MaxSize(100))
+			sCache := cache.GetOrCreateSecondaryCache("primary")
+			ff, err := faulting.NewFaultingFile(ss, cacheFile.Name(), int64(len(ss.Content)), sCache)
 			Expect(err).To(BeNil())
 
 			ff.SetBlockSize(11)
@@ -174,7 +181,9 @@ var _ = Describe("When faulting in a file", func() {
 			defer os.Remove(cacheFile.Name())
 			cacheFile.Close()
 
-			ff, err := faulting.NewFaultingFile(ss, cacheFile.Name(), int64(len(ss.Content)))
+			cache := ccache.Layered(ccache.Configure().MaxSize(100))
+			sCache := cache.GetOrCreateSecondaryCache("primary")
+			ff, err := faulting.NewFaultingFile(ss, cacheFile.Name(), int64(len(ss.Content)), sCache)
 			Expect(err).To(BeNil())
 
 			fr := faulting.NewFaultingReader(ff)

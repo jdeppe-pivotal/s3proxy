@@ -7,20 +7,23 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"strings"
 	"path"
+	"github.com/jdeppe-pivotal/ccache"
 )
 
 type S3Source struct{
-	session    *session.Session
+	session		*session.Session
+	blockCache	*ccache.LayeredCache
 }
 
-func NewS3Source() *S3Source {
+func NewS3Source(cache *ccache.LayeredCache) *S3Source {
 	// The session the S3 Downloader will use
-	session := session.New(&aws.Config{
+	sess := session.New(&aws.Config{
 		Region: aws.String("us-west-2"),
 	})
 
 	return &S3Source{
-		session: session,
+		session: sess,
+		blockCache: cache,
 	}
 }
 
@@ -54,7 +57,8 @@ func (this S3Source) Get(uri string) (*faulting.FaultingFile, *Meta, error) {
 	//go downloader.Download(pWriter, params)
 
 	bucketObject := path.Join(bucket, object)
-	ff, err := faulting.NewFaultingFile(getResp.Body, bucketObject, *headResp.ContentLength)
+	sCache := this.blockCache.GetOrCreateSecondaryCache(uri)
+	ff, err := faulting.NewFaultingFile(getResp.Body, bucketObject, *headResp.ContentLength, sCache)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -67,6 +71,10 @@ func (this S3Source) Get(uri string) (*faulting.FaultingFile, *Meta, error) {
 	}
 
 	return ff, meta, nil
+}
+
+func (this S3Source) GetMeta(uri string) *Meta {
+	return &Meta{}
 }
 
 func splitS3Uri(uri string) (string, string) {
