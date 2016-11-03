@@ -5,7 +5,7 @@ import (
 	"s3proxy/proxy"
 	"s3proxy/source"
 	"s3proxy/blob_cache"
-	"github.com/jdeppe-pivotal/ccache"
+	"github.com/karlseguin/ccache"
 )
 
 func main() {

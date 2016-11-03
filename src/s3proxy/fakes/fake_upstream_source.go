@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"errors"
 	"path"
-	"github.com/jdeppe-pivotal/ccache"
+	"github.com/karlseguin/ccache"
 	"time"
 )
 

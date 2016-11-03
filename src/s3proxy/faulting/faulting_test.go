@@ -9,7 +9,7 @@ import (
 	"os"
 	"s3proxy/faulting"
 	"s3proxy/fakes"
-	"github.com/jdeppe-pivotal/ccache"
+	"github.com/karlseguin/ccache"
 )
 
 var _ = Describe("When faulting in a file", func() {

@@ -7,7 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"strings"
 	"path"
-	"github.com/jdeppe-pivotal/ccache"
+	"github.com/karlseguin/ccache"
 )
 
 type S3Source struct{

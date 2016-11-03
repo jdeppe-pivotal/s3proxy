@@ -171,6 +171,12 @@
 			"revisionTime": "2016-08-03T19:07:31Z"
 		},
 		{
+			"checksumSHA1": "Lc2cKhBSvsFsRHhfe4FQjg7Yqrg=",
+			"path": "github.com/karlseguin/ccache",
+			"revision": "a2d62155777b39595c825ed3824279e642a5db3c",
+			"revisionTime": "2016-11-03T15:19:53Z"
+		},
+		{
 			"checksumSHA1": "5CYrIFTTUD3pONFo8uEO21Ajz68=",
 			"path": "github.com/onsi/ginkgo",
 			"revision": "a8ccd817611666211fdf6e6a752174a0db8374a8",

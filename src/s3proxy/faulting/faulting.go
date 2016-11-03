@@ -6,7 +6,7 @@ import (
 	"time"
 	"os"
 	"path"
-	"github.com/jdeppe-pivotal/ccache"
+	"github.com/karlseguin/ccache"
 	"strconv"
 )
 
