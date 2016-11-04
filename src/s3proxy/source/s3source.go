@@ -11,19 +11,21 @@ import (
 )
 
 type S3Source struct{
-	session		*session.Session
-	blockCache	*ccache.LayeredCache
+	session      *session.Session
+	blockCache   *ccache.LayeredCache
+	baseCacheDir string
 }
 
-func NewS3Source(cache *ccache.LayeredCache) *S3Source {
+func NewS3Source(cache *ccache.LayeredCache, region, cacheDir string) *S3Source {
 	// The session the S3 Downloader will use
 	sess := session.New(&aws.Config{
-		Region: aws.String("us-west-2"),
+		Region: aws.String(region),
 	})
 
 	return &S3Source{
 		session: sess,
 		blockCache: cache,
+		baseCacheDir: cacheDir,
 	}
 }
 
@@ -56,9 +58,9 @@ func (this S3Source) Get(uri string) (*faulting.FaultingFile, *Meta, error) {
 	//downloader := s3manager.NewDownloader(this.session)
 	//go downloader.Download(pWriter, params)
 
-	bucketObject := path.Join(bucket, object)
+	objectFile := path.Join(this.baseCacheDir, bucket, object)
 	sCache := this.blockCache.GetOrCreateSecondaryCache(uri)
-	ff, err := faulting.NewFaultingFile(getResp.Body, bucketObject, *headResp.ContentLength, sCache)
+	ff, err := faulting.NewFaultingFile(getResp.Body, objectFile, *headResp.ContentLength, sCache)
 	if err != nil {
 		return nil, nil, err
 	}

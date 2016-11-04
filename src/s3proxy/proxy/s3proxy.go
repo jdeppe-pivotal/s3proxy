@@ -6,18 +6,21 @@ import (
 	"s3proxy/blob_cache"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/op/go-logging"
 )
 
 type S3Proxy struct {
 	cache blob_cache.BlobCache
 }
 
+var log = logging.MustGetLogger("s3proxy")
+
 func NewS3Proxy(c blob_cache.BlobCache) *S3Proxy {
 	return &S3Proxy{c}
 }
 
 func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
-	fmt.Printf("-> Requesting %s\n", req.URL.Path)
+	log.Infof("Requesting %s", req.URL.Path)
 
 	// Ugghhh. Hardcode...
 	if req.URL.Path == "/favicon.ico" {
@@ -35,10 +38,10 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 			if awsErr.Code() == "NotFound" {
 				code = http.StatusNotFound
 			} else {
-				fmt.Printf("AWS Unclassified error: %+v\n", awsErr)
+				log.Infof("AWS Unclassified error: %+v", awsErr)
 			}
 		} else {
-			fmt.Printf("ERROR: %+v\n", err)
+			log.Infof("ERROR: %+v", err)
 		}
 		w.WriteHeader(code)
 		return
