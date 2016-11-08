@@ -54,8 +54,8 @@ func processArgs() *Config {
 	flag.StringVar(&c.cacheDir, "c", ".", "cache directory")
 	flag.Int64Var(&c.cacheSize, "m", 1000, "size of in-memory cache (in MB)")
 	flag.IntVar(&c.port, "p", 8080, "port to listen on")
-	flag.StringVar(&c.region, "r", "us-west-2", "Region to use")
-	flag.IntVar(&c.ttl, "t", 600, "time to live")
+	flag.StringVar(&c.region, "r", "us-west-2", "region to use")
+	flag.IntVar(&c.ttl, "t", 600, "time before objects are re-validated (in seconds)")
 
 	flag.Parse()
 
