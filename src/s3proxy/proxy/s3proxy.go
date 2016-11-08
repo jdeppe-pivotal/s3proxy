@@ -20,8 +20,6 @@ func NewS3Proxy(c blob_cache.BlobCache) *S3Proxy {
 }
 
 func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
-	log.Infof("Requesting %s", req.URL.Path)
-
 	// Ugghhh. Hardcode...
 	if req.URL.Path == "/favicon.ico" {
 		w.WriteHeader(http.StatusNotFound)
@@ -30,6 +28,7 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 
 	r, err := this.cache.Get(req.URL.Path)
 	meta := this.cache.GetMeta(req.URL.Path)
+
 	defer r.Close()
 
 	if err != nil {
@@ -38,10 +37,10 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 			if awsErr.Code() == "NotFound" {
 				code = http.StatusNotFound
 			} else {
-				log.Infof("AWS Unclassified error: %+v", awsErr)
+				log.Errorf("AWS Unclassified error: %+v", awsErr)
 			}
 		} else {
-			log.Infof("ERROR: %+v", err)
+			log.Errorf("ERROR: %+v", err)
 		}
 		w.WriteHeader(code)
 		return

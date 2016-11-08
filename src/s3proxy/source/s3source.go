@@ -8,6 +8,7 @@ import (
 	"strings"
 	"path"
 	"github.com/karlseguin/ccache"
+	"github.com/op/go-logging"
 )
 
 type S3Source struct{
@@ -15,6 +16,8 @@ type S3Source struct{
 	blockCache   *ccache.LayeredCache
 	baseCacheDir string
 }
+
+var log = logging.MustGetLogger("s3proxy")
 
 func NewS3Source(cache *ccache.LayeredCache, region, cacheDir string) *S3Source {
 	// The session the S3 Downloader will use
@@ -35,16 +38,6 @@ func (this S3Source) Get(uri string) (*faulting.FaultingFile, *Meta, error) {
 
 	svc := s3.New(this.session)
 
-	headParams := &s3.HeadObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(object),
-	}
-
-	headResp, err := svc.HeadObject(headParams)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	params := &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(object),
@@ -60,16 +53,16 @@ func (this S3Source) Get(uri string) (*faulting.FaultingFile, *Meta, error) {
 
 	objectFile := path.Join(this.baseCacheDir, bucket, object)
 	sCache := this.blockCache.GetOrCreateSecondaryCache(uri)
-	ff, err := faulting.NewFaultingFile(getResp.Body, objectFile, *headResp.ContentLength, sCache)
+	ff, err := faulting.NewFaultingFile(getResp.Body, objectFile, *getResp.ContentLength, sCache)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	ff.Stream(nil)
 	meta := &Meta{
-		Size: *headResp.ContentLength,
-		LastModified: *headResp.LastModified,
-		ContentType: *headResp.ContentType,
+		Size: *getResp.ContentLength,
+		LastModified: *getResp.LastModified,
+		ContentType: *getResp.ContentType,
 	}
 
 	return ff, meta, nil

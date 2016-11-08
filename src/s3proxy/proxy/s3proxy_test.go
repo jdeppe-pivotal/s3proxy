@@ -11,7 +11,11 @@ import (
 	"s3proxy/blob_cache"
 	"os"
 	"path"
+	"github.com/op/go-logging"
+	"github.com/karlseguin/ccache"
 )
+
+var log = logging.MustGetLogger("s3proxy")
 
 var _ = Describe("S3Proxy test suite", func() {
 	Context("regular proxy URLs", func() {
@@ -21,7 +25,8 @@ var _ = Describe("S3Proxy test suite", func() {
 			defer os.RemoveAll(cacheDir)
 
 			fus := fakes.NewFakeUpstreamSource(cacheDir)
-			cache := blob_cache.NewS3Cache(fus)
+			bc := ccache.Layered(ccache.Configure())
+			cache := blob_cache.NewS3Cache(bc, fus, cacheDir, 60)
 			p := proxy.NewS3Proxy(cache)
 
 			handler := http.HandlerFunc(p.Handler)
@@ -49,7 +54,8 @@ var _ = Describe("S3Proxy test suite", func() {
 			defer os.RemoveAll(cacheDir)
 
 			fus := fakes.NewFakeUpstreamSource(cacheDir)
-			cache := blob_cache.NewS3Cache(fus)
+			bc := ccache.Layered(ccache.Configure())
+			cache := blob_cache.NewS3Cache(bc, fus, cacheDir, 60)
 			p := proxy.NewS3Proxy(cache)
 
 			handler := http.HandlerFunc(p.Handler)
@@ -76,7 +82,8 @@ var _ = Describe("S3Proxy test suite", func() {
 			defer os.RemoveAll(cacheDir)
 
 			fus := fakes.NewFakeUpstreamSource(cacheDir)
-			cache := blob_cache.NewS3Cache(fus)
+			bc := ccache.Layered(ccache.Configure())
+			cache := blob_cache.NewS3Cache(bc, fus, cacheDir, 60)
 			p := proxy.NewS3Proxy(cache)
 
 			handler := http.HandlerFunc(p.Handler)
@@ -100,7 +107,8 @@ var _ = Describe("S3Proxy test suite", func() {
 			defer os.RemoveAll(cacheDir)
 
 			fus := fakes.NewFakeUpstreamSource(cacheDir)
-			cache := blob_cache.NewS3Cache(fus)
+			bc := ccache.Layered(ccache.Configure())
+			cache := blob_cache.NewS3Cache(bc, fus, cacheDir, 60)
 			p := proxy.NewS3Proxy(cache)
 
 			handler := http.HandlerFunc(p.Handler)
@@ -117,6 +125,48 @@ var _ = Describe("S3Proxy test suite", func() {
 			Expect(err).To(BeNil())
 			Expect(len(body) > 0).To(BeTrue())
 			Expect(len(body) < 3000000).To(BeTrue())
+		})
+
+		It("recovers meta files", func() {
+			cacheDir, err := ioutil.TempDir("", "cached-")
+			Expect(err).To(BeNil())
+			defer os.RemoveAll(cacheDir)
+
+			fus := fakes.NewFakeUpstreamSource(cacheDir)
+			bc := ccache.Layered(ccache.Configure())
+			cache := blob_cache.NewS3Cache(bc, fus, cacheDir, 60)
+			p := proxy.NewS3Proxy(cache)
+
+			handler := http.HandlerFunc(p.Handler)
+			req, err := http.NewRequest("GET", "/test_bucket/10", nil)
+			Expect(err).To(BeNil())
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			body1, err := ioutil.ReadAll(rr.Body)
+			Expect(err).To(BeNil())
+
+			// Create a new cache but pass in a nil source.
+			// This would cause a panic if the caching doesn't actually work.
+			bc2 := ccache.Layered(ccache.Configure())
+			cache2 := blob_cache.NewS3Cache(bc2, nil, cacheDir, 60)
+			cache2.RecoverMeta()
+
+			m := cache2.GetMeta("/test_bucket/10")
+			Expect(m).ToNot(BeNil())
+
+			p2 := proxy.NewS3Proxy(cache2)
+
+			handler2 := http.HandlerFunc(p2.Handler)
+			req, err = http.NewRequest("GET", "/test_bucket/10", nil)
+			Expect(err).To(BeNil())
+
+			rr2 := httptest.NewRecorder()
+			handler2.ServeHTTP(rr2, req)
+
+			body2, err := ioutil.ReadAll(rr2.Body)
+			Expect(err).To(BeNil())
+			Expect(body2).To(Equal(body1))
 		})
 	})
 })

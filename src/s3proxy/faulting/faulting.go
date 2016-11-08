@@ -8,9 +8,12 @@ import (
 	"path"
 	"github.com/karlseguin/ccache"
 	"strconv"
+	"github.com/op/go-logging"
 )
 
 const BLOCK_SIZE = 1024 * 1024
+
+var log = logging.MustGetLogger("s3proxy")
 
 type FaultingReader struct {
 	faultingFile	*FaultingFile
@@ -25,25 +28,25 @@ func NewFaultingReader(f *FaultingFile) *FaultingReader {
 }
 
 func (this *FaultingReader) Read(p []byte) (int, error) {
-	if this.bytesRead >= this.faultingFile.Size {
+	if this.bytesRead >= this.Size() {
 		return 0, io.EOF
 	}
 
 	// Calculate which block we need
-	index := int(this.bytesRead / int64(this.faultingFile.blockSize))
+	index := int(this.bytesRead / int64(this.faultingFile.BlockSize))
 	faultedBlock, err := this.faultingFile.GetBlock(index)
 	if err != nil {
 		return 0, err
 	}
 
-	i := this.bytesRead - int64(index * this.faultingFile.blockSize)
+	i := this.bytesRead - int64(index * this.faultingFile.BlockSize)
 	blockEnd := int(this.faultingFile.Size - this.bytesRead + i)
-	if blockEnd > this.faultingFile.blockSize {
-		blockEnd = this.faultingFile.blockSize
+	if blockEnd > this.faultingFile.BlockSize {
+		blockEnd = this.faultingFile.BlockSize
 	}
 
 	n := copy(p, faultedBlock[i:blockEnd])
-	//fmt.Printf("--->> Reading block: %d total: %d n: %d\n", index, this.bytesRead, n)
+	//log.Debugf("--->> Reading block: %d total: %d n: %d", index, this.bytesRead, n)
 
 	this.bytesRead += int64(n)
 
@@ -59,36 +62,38 @@ func (this *FaultingReader) Size() int64 {
 }
 
 type FaultingFile struct {
-	src         io.Reader
-	dst         string
-	dstFile     *os.File
-	blockCache  *ccache.SecondaryCache
-	blockCount  int
+	Src         io.Reader
+	Dst         string
+	DstFile     *os.File
+	BlockCache  *ccache.SecondaryCache
+	BlockCount  int
 	Size        int64
 	UpstreamErr error
-	lock        sync.Mutex
-	blockSize   int
+	Lock        sync.Mutex
+	BlockSize   int
 }
 
 func NewFaultingFile(src io.Reader, dst string, size int64, cache *ccache.SecondaryCache) (*FaultingFile, error) {
-	// Make sure we have a directory for our cached file
-	err := os.MkdirAll(path.Dir(dst), 0755)
-	if err != nil {
-		return nil, err
-	}
+	if _, err := os.Stat(dst); os.IsNotExist(err) {
+		// Make sure we have a directory for our cached file
+		err := os.MkdirAll(path.Dir(dst), 0755)
+		if err != nil {
+			return nil, err
+		}
 
-	f, err := os.Create(dst)
-	defer f.Close()
-	if err != nil {
-		return nil, err
+		f, err := os.Create(dst)
+		defer f.Close()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &FaultingFile{
-		blockCache: cache,
-		src: src,
-		dst: dst,
+		BlockCache: cache,
+		Src: src,
+		Dst: dst,
 		Size: size,
-		blockSize: BLOCK_SIZE,
+		BlockSize: BLOCK_SIZE,
 	}, nil
 }
 
@@ -97,7 +102,7 @@ func (this *FaultingFile) Stream(wg *sync.WaitGroup) {
 }
 
 func (this *FaultingFile) SetBlockSize(blockSize int) {
-	this.blockSize = blockSize
+	this.BlockSize = blockSize
 }
 
 func (this *FaultingFile) GetBlock(i int) ([]byte, error) {
@@ -105,14 +110,14 @@ func (this *FaultingFile) GetBlock(i int) ([]byte, error) {
 		return nil, this.UpstreamErr
 	}
 
-	for i >= this.blockCount {
+	for i >= this.BlockCount {
 		time.Sleep(100 * time.Millisecond)
 		if this.UpstreamErr != nil {
 			return nil, this.UpstreamErr
 		}
 	}
 
-	entry, err := this.blockCache.Fetch(strconv.Itoa(i), time.Second, func() (interface{}, error) {return this.faultInBlock(i)})
+	entry, err := this.BlockCache.Fetch(strconv.Itoa(i), time.Second, func() (interface{}, error) {return this.faultInBlock(i)})
 
 	if err != nil {
 		return nil, err
@@ -122,7 +127,7 @@ func (this *FaultingFile) GetBlock(i int) ([]byte, error) {
 }
 
 func (this *FaultingFile) getCachedBlock(i int) []byte {
-	buf := this.blockCache.Get(strconv.Itoa(i))
+	buf := this.BlockCache.Get(strconv.Itoa(i))
 	if buf != nil {
 		if byteBuf, ok := buf.Value().([]byte); ok {
 			return byteBuf
@@ -135,18 +140,18 @@ func (this *FaultingFile) getCachedBlock(i int) []byte {
 }
 
 func (this *FaultingFile) faultInBlock(i int) ([]byte, error) {
-	buf := make([]byte, this.blockSize)
+	buf := make([]byte, this.BlockSize)
 
-	dst, err := os.Open(this.dst)
+	dst, err := os.Open(this.Dst)
 	if err != nil {
 		return nil, err
 	}
 	defer dst.Close()
 
-	sr := io.NewSectionReader(dst, int64(i * this.blockSize), int64(this.blockSize))
+	sr := io.NewSectionReader(dst, int64(i * this.BlockSize), int64(this.BlockSize))
 
 	var bytesRead int
-	for bytesRead < this.blockSize {
+	for bytesRead < this.BlockSize {
 		n, err := sr.Read(buf[bytesRead:])
 		if err == io.EOF {
 			break
@@ -163,7 +168,7 @@ func (this *FaultingFile) readAll(wg *sync.WaitGroup) {
 	var bytesRead int64
 	var bytesWritten int64
 
-	dstFile, err := os.Create(this.dst)
+	dstFile, err := os.Create(this.Dst)
 	defer dstFile.Close()
 	//defer this.src.Close()
 
@@ -176,8 +181,8 @@ func (this *FaultingFile) readAll(wg *sync.WaitGroup) {
 	}
 
 	for bytesRead < this.Size {
-		buf := make([]byte, this.blockSize)
-		m, err := io.ReadFull(this.src, buf)
+		buf := make([]byte, this.BlockSize)
+		m, err := io.ReadFull(this.Src, buf)
 		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 			this.UpstreamErr = err
 			break
@@ -192,8 +197,8 @@ func (this *FaultingFile) readAll(wg *sync.WaitGroup) {
 		bytesRead += int64(m)
 		bytesWritten += int64(n)
 
-		this.blockCache.Set(strconv.Itoa(this.blockCount), buf, 100)
-		this.blockCount++
+		this.BlockCache.Set(strconv.Itoa(this.BlockCount), buf, 100)
+		this.BlockCount++
 	}
 	if wg != nil {
 		wg.Done()

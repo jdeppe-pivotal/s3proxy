@@ -12,12 +12,16 @@ import (
 	"os"
 )
 
-var port int
-var cacheSize int64
-var cacheDir string
-var region string
-
 var log = logging.MustGetLogger("s3proxy")
+
+type Config struct{
+	port      int
+	cacheSize int64
+	cacheDir  string
+	region    string
+	ttl       int
+}
+
 
 func init() {
 	format := logging.MustStringFormatter(
@@ -29,24 +33,38 @@ func init() {
 }
 
 func main() {
-	flag.IntVar(&port, "-p", 8080, "port to listen on")
-	flag.Int64Var(&cacheSize, "-m", 1000, "size of in-memory cache (in MB)")
-	flag.StringVar(&cacheDir, "-c", ".", "cache directory")
-	flag.StringVar(&region, "-r", "us-west-2", "Region to use")
+	config := processArgs()
+
+	cache := ccache.Layered(ccache.Configure().MaxSize(config.cacheSize).ItemsToPrune(100))
+	s := source.NewS3Source(cache, config.region, config.cacheDir)
+	c := blob_cache.NewS3Cache(cache, *s, config.cacheDir, config.ttl)
+
+	log.Info("Scanning for meta files")
+	c.RecoverMeta()
+
+	pxy := proxy.NewS3Proxy(c)
+
+	http.HandleFunc("/", pxy.Handler)
+	http.ListenAndServe(fmt.Sprintf(":%d", config.port), nil)
+}
+
+func processArgs() *Config {
+	c := &Config{}
+
+	flag.StringVar(&c.cacheDir, "c", ".", "cache directory")
+	flag.Int64Var(&c.cacheSize, "m", 1000, "size of in-memory cache (in MB)")
+	flag.IntVar(&c.port, "p", 8080, "port to listen on")
+	flag.StringVar(&c.region, "r", "us-west-2", "Region to use")
+	flag.IntVar(&c.ttl, "t", 600, "time to live")
 
 	flag.Parse()
 
 	log.Infof("Starting s3proxy with:")
-	log.Infof("    port:            %d", port)
-	log.Infof("    cache size (MB): %d", cacheSize)
-	log.Infof("    region:          %s", region)
-	log.Infof("    cache dir:       %s", cacheDir)
+	log.Infof("    port:            %d", c.port)
+	log.Infof("    cache size (MB): %d", c.cacheSize)
+	log.Infof("    time-to-live:    %d", c.ttl)
+	log.Infof("    region:          %s", c.region)
+	log.Infof("    cache dir:       %s", c.cacheDir)
 
-	cache := ccache.Layered(ccache.Configure().MaxSize(cacheSize).ItemsToPrune(100))
-	s := source.NewS3Source(cache, region, cacheDir)
-	c := blob_cache.NewS3Cache(*s)
-	pxy := proxy.NewS3Proxy(c)
-
-	http.HandleFunc("/", pxy.Handler)
-	http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	return c
 }
