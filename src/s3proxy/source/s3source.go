@@ -63,6 +63,7 @@ func (this S3Source) Get(uri string) (*faulting.FaultingFile, *Meta, error) {
 		Size: *getResp.ContentLength,
 		LastModified: *getResp.LastModified,
 		ContentType: *getResp.ContentType,
+		ETag: *getResp.ETag,
 	}
 
 	return ff, meta, nil

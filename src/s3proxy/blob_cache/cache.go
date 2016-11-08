@@ -97,6 +97,8 @@ func (this S3Cache) Get(uri string) (*faulting.FaultingReader, error) {
 }
 
 func (this S3Cache) GetMeta(uri string) *source.Meta {
+	this.lock.RLock()
+	defer this.lock.RUnlock()
 	if entry, ok := this.cachedFiles[uri]; ok {
 		return entry.meta
 	}
@@ -180,12 +182,16 @@ func (this S3Cache) validateEntry(uri string) {
 	// Get current Meta
 	meta := this.source.GetMeta(uri)
 
-	// Check the ETag, Size or LastModified
-	if meta.Size == entry.meta.Size && meta.LastModified == entry.meta.LastModified {
+	// Check the ETag, Size and LastModified
+	if meta.ETag == entry.meta.ETag &&
+			meta.Size == entry.meta.Size &&
+			meta.LastModified == entry.meta.LastModified {
 		return
 	}
 
 	// If there is a change, then remove the currently cached entry
-	// TODO: What about locking?
+	log.Debugf("Expiring %s", uri)
+	this.lock.Lock()
+	defer this.lock.Unlock()
 	delete(this.cachedFiles, uri)
 }

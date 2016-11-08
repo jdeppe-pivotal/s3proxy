@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/op/go-logging"
 	"os"
+	"strings"
 )
 
 var log = logging.MustGetLogger("s3proxy")
@@ -58,6 +59,9 @@ func processArgs() *Config {
 	flag.IntVar(&c.ttl, "t", 600, "time before objects are re-validated (in seconds)")
 
 	flag.Parse()
+
+	// Don't want this dir to end with a / - it messes up other things.
+	c.cacheDir = strings.TrimRight(c.cacheDir, "/")
 
 	log.Infof("Starting s3proxy with:")
 	log.Infof("    port:            %d", c.port)
