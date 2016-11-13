@@ -28,7 +28,7 @@ type S3Cache struct {
 	source      source.UpstreamSource
 	cachedFiles map[string]*CacheEntry
 	cacheDir    string
-	lock        sync.RWMutex
+	lock        *sync.RWMutex
 	ttl         int
 	blockCache  *ccache.LayeredCache
 }
