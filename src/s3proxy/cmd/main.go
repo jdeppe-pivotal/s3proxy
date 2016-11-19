@@ -15,14 +15,13 @@ import (
 
 var log = logging.MustGetLogger("s3proxy")
 
-type Config struct{
+type Config struct {
 	port      int
 	cacheSize int64
 	cacheDir  string
 	region    string
 	ttl       int
 }
-
 
 func init() {
 	format := logging.MustStringFormatter(

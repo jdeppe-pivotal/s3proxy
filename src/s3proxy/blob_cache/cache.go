@@ -25,10 +25,10 @@ type BlobCache interface {
 }
 
 type S3Cache struct {
+	sync.RWMutex
 	source      source.UpstreamSource
 	cachedFiles map[string]*CacheEntry
 	cacheDir    string
-	lock        *sync.RWMutex
 	ttl         int
 	blockCache  *ccache.LayeredCache
 }
@@ -54,15 +54,15 @@ func NewS3Cache(cache *ccache.LayeredCache, s source.UpstreamSource, cacheDir st
 func (this S3Cache) Get(uri string) (*faulting.FaultingReader, error) {
 	this.validateEntry(uri)
 
-	this.lock.RLock()
+	this.RLock()
 	if entry, ok := this.cachedFiles[uri]; ok {
 		log.Debugf("Cache hit: %s", uri)
 		return faulting.NewFaultingReader(entry.faultingFile), nil
 	}
-	this.lock.RUnlock()
+	this.RUnlock()
 
-	this.lock.Lock()
-	defer this.lock.Unlock()
+	this.Lock()
+	defer this.Unlock()
 
 	// Once we have the lock, make sure someone else didn't already do this
 	// while we were waiting.
@@ -97,8 +97,8 @@ func (this S3Cache) Get(uri string) (*faulting.FaultingReader, error) {
 }
 
 func (this S3Cache) GetMeta(uri string) *source.Meta {
-	this.lock.RLock()
-	defer this.lock.RUnlock()
+	this.RLock()
+	defer this.RUnlock()
 	if entry, ok := this.cachedFiles[uri]; ok {
 		return entry.meta
 	}
@@ -191,7 +191,7 @@ func (this S3Cache) validateEntry(uri string) {
 
 	// If there is a change, then remove the currently cached entry
 	log.Debugf("Expiring %s", uri)
-	this.lock.Lock()
-	defer this.lock.Unlock()
+	this.Lock()
+	defer this.Unlock()
 	delete(this.cachedFiles, uri)
 }
