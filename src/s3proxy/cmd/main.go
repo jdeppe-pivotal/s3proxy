@@ -59,6 +59,14 @@ func processArgs() *Config {
 
 	flag.Parse()
 
+	if c.cacheDir == "." {
+		var err error
+		c.cacheDir, err = os.Getwd()
+		if err != nil {
+			log.Fatalf("Unable to determine pwd: %v", err)
+		}
+	}
+
 	// Don't want this dir to end with a / - it messes up other things.
 	c.cacheDir = strings.TrimRight(c.cacheDir, "/")
 
