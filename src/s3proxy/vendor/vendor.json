@@ -165,6 +165,12 @@
 			"revisionTime": "2016-08-27T06:11:18Z"
 		},
 		{
+			"checksumSHA1": "yuwRx/ucNqNyreGrPZlvDRsjaXQ=",
+			"path": "github.com/go-zoo/bone",
+			"revision": "34232a072007f7a1d1e7b5a286cc559ed6a29964",
+			"revisionTime": "2016-10-29T22:00:03Z"
+		},
+		{
 			"checksumSHA1": "0ZrwvB6KoGPj2PoDNSEJwxQ6Mog=",
 			"path": "github.com/jmespath/go-jmespath",
 			"revision": "bd40a432e4c76585ef6b72d3fd96fb9b6dc7b68d",

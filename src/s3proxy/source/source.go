@@ -15,5 +15,5 @@ type Meta struct {
 
 type UpstreamSource interface {
 	Get(uri string) (*faulting.FaultingFile, *Meta, error)
-	GetMeta(uri string) (*Meta)
+	GetMeta(uri string) (*Meta, error)
 }

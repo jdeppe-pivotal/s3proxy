@@ -44,6 +44,9 @@ func (this S3Source) Get(uri string) (*faulting.FaultingFile, *Meta, error) {
 	}
 
 	getResp, err := svc.GetObject(params)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// TODO: Write a Reader which implements ReadAt but assumes the offset will always be increasing
 	//pReader, pWriter := io.Pipe()
@@ -69,8 +72,26 @@ func (this S3Source) Get(uri string) (*faulting.FaultingFile, *Meta, error) {
 	return ff, meta, nil
 }
 
-func (this S3Source) GetMeta(uri string) *Meta {
-	return &Meta{}
+func (this S3Source) GetMeta(uri string) (*Meta, error) {
+	bucket, object := splitS3Uri(uri)
+	svc := s3.New(this.session)
+
+	params := &s3.HeadObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(object),
+	}
+
+	headResp, err := svc.HeadObject(params)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Meta{
+		Size: *headResp.ContentLength,
+		LastModified: *headResp.LastModified,
+		ContentType: *headResp.ContentType,
+		ETag: *headResp.ETag,
+	}, nil
 }
 
 func splitS3Uri(uri string) (string, string) {

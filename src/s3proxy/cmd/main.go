@@ -11,6 +11,7 @@ import (
 	"github.com/op/go-logging"
 	"os"
 	"strings"
+	"github.com/go-zoo/bone"
 )
 
 var log = logging.MustGetLogger("s3proxy")
@@ -44,9 +45,17 @@ func main() {
 
 	pxy := proxy.NewS3Proxy(c)
 
-	http.HandleFunc("/", pxy.Handler)
-	http.ListenAndServe(fmt.Sprintf(":%d", config.port), nil)
+	m := bone.New()
+	//m.Get("/admin/:foo", http.HandlerFunc(Admin))
+	m.Get("/*", http.HandlerFunc(pxy.Handler))
+
+	//http.HandleFunc("/", pxy.Handler)
+	http.ListenAndServe(fmt.Sprintf(":%d", config.port), m)
 }
+
+//func Admin(w http.ResponseWriter, req *http.Request) {
+//	log.Info("admin called")
+//}
 
 func processArgs() *Config {
 	c := &Config{}

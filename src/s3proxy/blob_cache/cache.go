@@ -180,12 +180,18 @@ func (this S3Cache) validateEntry(uri string) {
 	}
 
 	// Get current Meta
-	meta := this.source.GetMeta(uri)
+	meta, err := this.source.GetMeta(uri)
+	if err != nil {
+		log.Debugf("Unable to get meta: %s", err)
+		return
+	}
 
 	// Check the ETag, Size and LastModified
 	if meta.ETag == entry.meta.ETag &&
 			meta.Size == entry.meta.Size &&
 			meta.LastModified == entry.meta.LastModified {
+		entry.meta.Expires = time.Now().Add(time.Duration(this.ttl) * time.Second)
+		log.Infof("Revalidated %s", uri)
 		return
 	}
 
