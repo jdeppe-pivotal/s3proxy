@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/op/go-logging"
+	"strings"
 )
 
 type S3Proxy struct {
@@ -52,4 +53,13 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	io.Copy(w, r)
+}
+
+func (this *S3Proxy) Delete(w http.ResponseWriter, req *http.Request) {
+	uri := req.URL.Path
+	uri = strings.TrimPrefix(uri, "/admin")
+	log.Infof("Deleted: %s", uri)
+
+	this.cache.Delete(uri)
+	w.WriteHeader(http.StatusNoContent)
 }

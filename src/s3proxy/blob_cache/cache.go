@@ -22,6 +22,7 @@ type BlobCache interface {
 	Get(string) (*faulting.FaultingReader, error)
 	GetMeta(string) *source.Meta
 	Invalidate(string)
+	Delete(string)
 }
 
 type S3Cache struct {
@@ -197,6 +198,10 @@ func (this S3Cache) validateEntry(uri string) {
 
 	// If there is a change, then remove the currently cached entry
 	log.Debugf("Expiring %s", uri)
+	this.Delete(uri)
+}
+
+func (this S3Cache) Delete(uri string) {
 	this.Lock()
 	defer this.Unlock()
 	delete(this.cachedFiles, uri)

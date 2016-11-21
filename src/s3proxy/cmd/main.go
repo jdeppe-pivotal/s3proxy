@@ -46,7 +46,8 @@ func main() {
 	pxy := proxy.NewS3Proxy(c)
 
 	m := bone.New()
-	//m.Get("/admin/:foo", http.HandlerFunc(Admin))
+
+	m.Delete("/*", http.HandlerFunc(pxy.Delete))
 	m.Get("/*", http.HandlerFunc(pxy.Handler))
 
 	//http.HandleFunc("/", pxy.Handler)
