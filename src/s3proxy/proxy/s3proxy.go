@@ -27,6 +27,23 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	log.Infof("Requesting %s", req.URL.Path)
+
+	if strings.HasSuffix(req.URL.Path, "/") {
+		dirs, err := this.cache.Directory(req.URL.Path)
+		if err != nil {
+			log.Errorf("Unable to return directory: %s", err)
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-type", "text/plain")
+		for _, dir := range dirs {
+			w.Write([]byte(dir))
+			w.Write([]byte("\n"))
+		}
+		return
+	}
+
 	r, err := this.cache.Get(req.URL.Path)
 	meta := this.cache.GetMeta(req.URL.Path)
 

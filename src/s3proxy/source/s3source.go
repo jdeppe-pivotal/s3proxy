@@ -9,6 +9,7 @@ import (
 	"path"
 	"github.com/karlseguin/ccache"
 	"github.com/op/go-logging"
+	"errors"
 )
 
 type S3Source struct{
@@ -92,6 +93,61 @@ func (this S3Source) GetMeta(uri string) (*Meta, error) {
 		ContentType: *headResp.ContentType,
 		ETag: *headResp.ETag,
 	}, nil
+}
+
+func (this S3Source) Directory(path string) ([]string, error) {
+	var bucket string
+	svc := s3.New(this.session)
+
+	// Strip leading '/'s
+	for strings.Index(path, "/") == 0 {
+		path = path[1:]
+	}
+
+	slashIdx := strings.Index(path, "/")
+	if slashIdx > 0 {
+		bucket = path[:slashIdx]
+	} else {
+		return nil, errors.New("Cannot list all buckets currently")
+	}
+
+	prefix := path[slashIdx + 1:]
+
+	log.Infof("Returning bucket contents of '%s' with prefix '%s'", bucket, prefix)
+
+	params := &s3.ListObjectsInput{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix),
+	}
+
+	resp, err := svc.ListObjects(params)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []string
+	subdirs := make(map[string]bool)
+	for _, keyObj := range resp.Contents {
+		key := *keyObj.Key
+		sIdx := strings.Index(key[len(prefix):], "/")
+		if sIdx != -1 {
+			subdir := key[:(len(prefix) + sIdx + 1)]
+			subdirs[subdir] = true
+			continue
+		}
+
+		results = append(results, key)
+	}
+
+	for k, _ := range subdirs {
+		results = append(results, k)
+	}
+
+	for _, k := range results {
+		log.Infof("  -> %s", k)
+	}
+
+	return results, nil
 }
 
 func splitS3Uri(uri string) (string, string) {

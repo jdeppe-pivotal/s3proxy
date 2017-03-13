@@ -23,6 +23,7 @@ type BlobCache interface {
 	GetMeta(string) *source.Meta
 	Invalidate(string)
 	Delete(string)
+	Directory(string) ([]string, error)
 }
 
 type S3Cache struct {
@@ -205,4 +206,8 @@ func (this S3Cache) Delete(uri string) {
 	this.Lock()
 	defer this.Unlock()
 	delete(this.cachedFiles, uri)
+}
+
+func (this S3Cache) Directory(path string) ([]string, error) {
+	return this.source.Directory(path)
 }
