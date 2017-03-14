@@ -129,6 +129,11 @@ func (this S3Source) Directory(path string) ([]string, error) {
 	subdirs := make(map[string]bool)
 	for _, keyObj := range resp.Contents {
 		key := *keyObj.Key
+
+		if key == prefix {
+			continue
+		}
+
 		sIdx := strings.Index(key[len(prefix):], "/")
 		if sIdx != -1 {
 			subdir := key[:(len(prefix) + sIdx + 1)]
