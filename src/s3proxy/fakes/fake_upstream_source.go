@@ -65,6 +65,10 @@ func (this *FakeUpstreamSource) GetMeta(uri string) (*source.Meta, error) {
 	return &source.Meta{}, nil
 }
 
+func (this *FakeUpstreamSource) Directory(dir string) ([]string, error) {
+	return []string{}, nil
+}
+
 type GeneratedContentReader interface {
 	io.Reader
 	Size()      int64

@@ -59,6 +59,7 @@ func (this S3Cache) Get(uri string) (*faulting.FaultingReader, error) {
 	this.RLock()
 	if entry, ok := this.cachedFiles[uri]; ok {
 		log.Debugf("Cache hit: %s", uri)
+		this.RUnlock()
 		return faulting.NewFaultingReader(entry.faultingFile), nil
 	}
 	this.RUnlock()
@@ -129,7 +130,7 @@ func (this S3Cache) RecoverMeta() {
 			objectPath := strings.TrimPrefix(path, this.cacheDir)
 			objectPath = strings.TrimSuffix(objectPath, "._meta_")
 			log.Debugf("Adding meta %s", objectPath)
-			log.Debugf("  -> %+v", m)
+			log.Debugf("    %+v", m)
 			this.addMeta(m, objectPath)
 		}
 		return nil
@@ -171,7 +172,10 @@ func writeMeta(meta *source.Meta, objectFile string) error {
 
 func (this S3Cache) validateEntry(uri string) {
 	// Early out if we're not currently caching this object
+	this.RLock()
 	entry := this.cachedFiles[uri]
+	this.RUnlock()
+
 	if entry == nil {
 		return
 	}
