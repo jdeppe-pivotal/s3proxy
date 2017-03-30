@@ -169,10 +169,10 @@ func writeMeta(meta *source.Meta, objectFile string) error {
 func (this S3Cache) validateEntry(uri string) {
 	// Early out if we're not currently caching this object
 	this.RLock()
-	entry := this.cachedFiles[uri]
+	entry, found := this.cachedFiles[uri]
 	this.RUnlock()
 
-	if entry == nil {
+	if found {
 		return
 	}
 
