@@ -21,7 +21,6 @@ var log = logging.MustGetLogger("s3proxy")
 type BlobCache interface {
 	Get(string) (*faulting.FaultingReader, error)
 	GetMeta(string) *source.Meta
-	Invalidate(string)
 	Delete(string)
 	Directory(string) ([]string, error)
 }
@@ -106,9 +105,6 @@ func (this S3Cache) GetMeta(uri string) *source.Meta {
 		return entry.meta
 	}
 	return nil
-}
-
-func (this S3Cache) Invalidate(uri string) {
 }
 
 func (this S3Cache) RecoverMeta() {
@@ -209,7 +205,15 @@ func (this S3Cache) validateEntry(uri string) {
 func (this S3Cache) Delete(uri string) {
 	this.Lock()
 	defer this.Unlock()
-	delete(this.cachedFiles, uri)
+	if entry, ok := this.cachedFiles[uri]; ok {
+		log.Debugf("Deleting entry for request %s -> %s", uri, entry.faultingFile.Dst)
+		delete(this.cachedFiles, uri)
+
+		meta := fmt.Sprintf("%s._meta_", entry.faultingFile.Dst)
+		os.Remove(entry.faultingFile.Dst)
+		os.Remove(meta)
+		this.blockCache.DeleteAll(uri)
+	}
 }
 
 func (this S3Cache) Directory(path string) ([]string, error) {

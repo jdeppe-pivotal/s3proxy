@@ -79,6 +79,8 @@ var _ = Describe("When faulting in a file", func() {
 			sinkData, err := ioutil.ReadFile(cacheFile.Name())
 			Expect(err).To(BeNil())
 			Expect(sinkData).To(Equal(ss.Content))
+
+			Expect(sCache.Get("0")).ToNot(BeNil())
 		})
 
 		//It("has correct number of backing blocks", func() {

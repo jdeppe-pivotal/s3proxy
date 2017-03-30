@@ -46,7 +46,6 @@ func (this *FaultingReader) Read(p []byte) (int, error) {
 	}
 
 	n := copy(p, faultedBlock[i:blockEnd])
-	//log.Debugf("--->> Reading block: %d total: %d n: %d", index, this.bytesRead, n)
 
 	this.bytesRead += int64(n)
 
@@ -64,7 +63,6 @@ func (this *FaultingReader) Size() int64 {
 type FaultingFile struct {
 	Src         io.Reader
 	Dst         string
-	DstFile     *os.File
 	BlockCache  *ccache.SecondaryCache
 	BlockCount  int
 	Size        int64
@@ -164,19 +162,22 @@ func (this *FaultingFile) faultInBlock(i int) ([]byte, error) {
 	return buf, nil
 }
 
+// The WaitGroup is only used for test purposes
 func (this *FaultingFile) readAll(wg *sync.WaitGroup) {
 	var bytesRead int64
 	var bytesWritten int64
 
 	dstFile, err := os.Create(this.Dst)
 	defer dstFile.Close()
-	//defer this.src.Close()
 
-	if err != nil {
-		this.UpstreamErr = err
+	defer func() {
 		if wg != nil {
 			wg.Done()
 		}
+	} ()
+
+	if err != nil {
+		this.UpstreamErr = err
 		return
 	}
 
@@ -199,8 +200,5 @@ func (this *FaultingFile) readAll(wg *sync.WaitGroup) {
 
 		this.BlockCache.Set(strconv.Itoa(this.BlockCount), buf, 100)
 		this.BlockCount++
-	}
-	if wg != nil {
-		wg.Done()
 	}
 }

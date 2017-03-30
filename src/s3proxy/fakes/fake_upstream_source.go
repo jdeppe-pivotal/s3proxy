@@ -19,11 +19,11 @@ type FakeUpstreamSource struct {
 	blockCache     *ccache.LayeredCache
 }
 
-func NewFakeUpstreamSource(baseDir string) *FakeUpstreamSource {
+func NewFakeUpstreamSource(baseDir string, cache *ccache.LayeredCache) *FakeUpstreamSource {
 	return &FakeUpstreamSource{
 		baseDir: baseDir,
 		cacheBlockSize: 0,
-		blockCache: ccache.Layered(ccache.Configure().MaxSize(100)),
+		blockCache: cache,
 	}
 }
 
@@ -45,7 +45,8 @@ func (this *FakeUpstreamSource) Get(uri string) (*faulting.FaultingFile, *source
 		r = NewIntegerStreamingSource(size)
 	}
 
-	ff, err := faulting.NewFaultingFile(r, cachedFile, r.Size(), this.blockCache.GetOrCreateSecondaryCache(uri))
+	secondaryCache := this.blockCache.GetOrCreateSecondaryCache(uri)
+	ff, err := faulting.NewFaultingFile(r, cachedFile, r.Size(), secondaryCache)
 	if err != nil {
 		return nil, nil, err
 	}

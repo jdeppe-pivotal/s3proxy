@@ -69,7 +69,11 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-type", meta.ContentType)
 	}
 
-	io.Copy(w, r)
+	_, err = io.Copy(w, r)
+	if err != nil {
+		log.Errorf("Error streaming %s: %s", req.URL.Path, err)
+		this.cache.Delete(req.URL.Path)
+	}
 }
 
 func (this *S3Proxy) Delete(w http.ResponseWriter, req *http.Request) {

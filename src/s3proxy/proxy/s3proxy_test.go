@@ -24,8 +24,8 @@ var _ = Describe("S3Proxy test suite", func() {
 			Expect(err).To(BeNil())
 			defer os.RemoveAll(cacheDir)
 
-			fus := fakes.NewFakeUpstreamSource(cacheDir)
 			bc := ccache.Layered(ccache.Configure())
+			fus := fakes.NewFakeUpstreamSource(cacheDir, bc)
 			cache := blob_cache.NewS3Cache(bc, fus, cacheDir, 60)
 			p := proxy.NewS3Proxy(cache)
 
@@ -46,6 +46,8 @@ var _ = Describe("S3Proxy test suite", func() {
 			cachedData, err := ioutil.ReadFile(path.Join(cacheDir, "test_bucket", "10"))
 			Expect(err).To(BeNil())
 			Expect(string(cachedData)).To(Equal("0 1 2 3 4 5 6 7 8 9 "))
+
+			Expect(bc.Get("/test_bucket/10", "0")).ToNot(BeNil())
 		})
 
 		It("produces a cache file", func() {
@@ -53,8 +55,8 @@ var _ = Describe("S3Proxy test suite", func() {
 			Expect(err).To(BeNil())
 			defer os.RemoveAll(cacheDir)
 
-			fus := fakes.NewFakeUpstreamSource(cacheDir)
 			bc := ccache.Layered(ccache.Configure())
+			fus := fakes.NewFakeUpstreamSource(cacheDir, bc)
 			cache := blob_cache.NewS3Cache(bc, fus, cacheDir, 60)
 			p := proxy.NewS3Proxy(cache)
 
@@ -81,8 +83,8 @@ var _ = Describe("S3Proxy test suite", func() {
 			Expect(err).To(BeNil())
 			defer os.RemoveAll(cacheDir)
 
-			fus := fakes.NewFakeUpstreamSource(cacheDir)
 			bc := ccache.Layered(ccache.Configure())
+			fus := fakes.NewFakeUpstreamSource(cacheDir, bc)
 			cache := blob_cache.NewS3Cache(bc, fus, cacheDir, 60)
 			p := proxy.NewS3Proxy(cache)
 
@@ -106,8 +108,8 @@ var _ = Describe("S3Proxy test suite", func() {
 			Expect(err).To(BeNil())
 			defer os.RemoveAll(cacheDir)
 
-			fus := fakes.NewFakeUpstreamSource(cacheDir)
 			bc := ccache.Layered(ccache.Configure())
+			fus := fakes.NewFakeUpstreamSource(cacheDir, bc)
 			cache := blob_cache.NewS3Cache(bc, fus, cacheDir, 60)
 			p := proxy.NewS3Proxy(cache)
 
@@ -127,13 +129,47 @@ var _ = Describe("S3Proxy test suite", func() {
 			Expect(len(body) < 3000000).To(BeTrue())
 		})
 
+		It("cleans up correctly after an error", func() {
+			cacheDir, err := ioutil.TempDir("", "cached-")
+			Expect(err).To(BeNil())
+			defer os.RemoveAll(cacheDir)
+
+			bc := ccache.Layered(ccache.Configure())
+			fus := fakes.NewFakeUpstreamSource(cacheDir, bc)
+			cache := blob_cache.NewS3Cache(bc, fus, cacheDir, 60)
+			p := proxy.NewS3Proxy(cache)
+
+			handler := http.HandlerFunc(p.Handler)
+			req, err := http.NewRequest("GET", "/error/500000", nil)
+			Expect(err).To(BeNil())
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			Expect(rr.Code).To(Equal(http.StatusOK))
+
+			Expect(rr.Header().Get("Content-length")).To(Equal("3388890"))
+
+			body, err := ioutil.ReadAll(rr.Body)
+			Expect(err).To(BeNil())
+			Expect(len(body) > 0).To(BeTrue())
+			Expect(len(body) < 3000000).To(BeTrue())
+
+			_, err = os.Stat(path.Join(cacheDir, "error", "500000"))
+			Expect(err).ToNot(BeNil())
+
+			_, err = os.Stat(path.Join(cacheDir, "error", "500000._meta_"))
+			Expect(err).ToNot(BeNil())
+
+			Expect(bc.Get("/error/500000", "0")).To(BeNil())
+		})
+
 		It("recovers meta files", func() {
 			cacheDir, err := ioutil.TempDir("", "cached-")
 			Expect(err).To(BeNil())
 			defer os.RemoveAll(cacheDir)
 
-			fus := fakes.NewFakeUpstreamSource(cacheDir)
 			bc := ccache.Layered(ccache.Configure())
+			fus := fakes.NewFakeUpstreamSource(cacheDir, bc)
 			cache := blob_cache.NewS3Cache(bc, fus, cacheDir, 60)
 			p := proxy.NewS3Proxy(cache)
 
