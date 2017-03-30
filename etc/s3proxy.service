@@ -2,6 +2,7 @@
 Description=S3 Proxy
 
 [Service]
+User=ubuntu
 ExecStartPre=/bin/mkdir -p /var/cache/s3proxy
 ExecStart=/usr/local/bin/s3proxy -p 8080 -c /var/cache/s3proxy
 Restart=on-abort

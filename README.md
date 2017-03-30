@@ -25,6 +25,8 @@ Usage of ./s3proxy:
     	time before objects are re-validated (in seconds) (default 600)
 ```
 
+Make sure that the appropriate AWS credentials are set in `~/.aws/credentials`.
+
 ### Building
 
 3rd party dependencies are vendored using [govendor](http://github.com/kardianos/govendor). Install with:
@@ -44,7 +46,11 @@ go build -o s3proxy s3proxy/cmd
 
 ### Running as a systemd service
 
-To use under `systemd` a simple service file is provided in `etc/`. Adjust any necessary options in the file, and then do the following as root:
+To use under `systemd`, a simple service file is provided in `etc/`. Adjust any
+necessary options in the file such as the user under which it runs (default
+'ubuntu') and the cache directory. Make sure that the cache directory is
+created and writable by the user. Also ensure that the user has appropriate AWS
+credentials. Then do the following as root:
 
 ```
 cp etc/s3proxy.service /etc/systemd/system/
