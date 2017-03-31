@@ -172,7 +172,7 @@ func (this S3Cache) validateEntry(uri string) {
 	entry, found := this.cachedFiles[uri]
 	this.RUnlock()
 
-	if found {
+	if ! found {
 		return
 	}
 
