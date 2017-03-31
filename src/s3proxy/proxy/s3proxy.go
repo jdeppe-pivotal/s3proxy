@@ -76,7 +76,7 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 		// This is a bit messy, but we really don't care if the client aborted the
 		// connection. Other errors are assumed to be from the upstream side and
 		// thus result in the cache entry being removed.
-		if e, ok := err.(net.OpError); ok {
+		if e, ok := err.(*net.OpError); ok {
 			if e.Err != syscall.EPIPE {
 				log.Errorf("Error streaming %s: %s", req.URL.Path, err)
 				this.cache.Delete(req.URL.Path)
