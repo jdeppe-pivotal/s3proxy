@@ -9,7 +9,6 @@ import (
 	"github.com/op/go-logging"
 	"strings"
 	"net"
-	"syscall"
 )
 
 type S3Proxy struct {
@@ -77,11 +76,10 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 		// connection. Other errors are assumed to be from the upstream side and
 		// thus result in the cache entry being removed.
 		if e, ok := err.(*net.OpError); ok {
-			if e.Err != syscall.EPIPE {
-				log.Errorf("Error streaming %s: %s", req.URL.Path, err)
+			if e.Op != "write" {
+				log.Errorf("Error streaming %s: %s", req.URL.Path, e.Err)
 				this.cache.Delete(req.URL.Path)
 			}
-
 		} else {
 			log.Errorf("Error streaming %s: %s", req.URL.Path, err)
 			this.cache.Delete(req.URL.Path)
