@@ -11,7 +11,7 @@ import (
 	"s3proxy/fakes"
 	"github.com/karlseguin/ccache"
 	"s3proxy/context"
-	"context"
+	"golang.org/x/net/context"
 )
 
 func makeContext(id uint64) context.Context {

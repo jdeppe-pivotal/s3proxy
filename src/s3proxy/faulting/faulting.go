@@ -9,8 +9,8 @@ import (
 	"github.com/karlseguin/ccache"
 	"strconv"
 	"github.com/op/go-logging"
-	"context"
 	"s3proxy/context"
+	"golang.org/x/net/context"
 )
 
 const BLOCK_SIZE = 1024 * 1024

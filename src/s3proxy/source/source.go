@@ -3,7 +3,7 @@ package source
 import (
 	"time"
 	"s3proxy/faulting"
-	"context"
+	"golang.org/x/net/context"
 )
 
 type Meta struct {

@@ -9,9 +9,9 @@ import (
 	"github.com/op/go-logging"
 	"strings"
 	"net"
-	"context"
 	"sync/atomic"
 	"s3proxy/context"
+	"golang.org/x/net/context"
 )
 
 type S3Proxy struct {

@@ -10,7 +10,7 @@ import (
 	"github.com/karlseguin/ccache"
 	"github.com/op/go-logging"
 	"errors"
-	"context"
+	"golang.org/x/net/context"
 )
 
 type S3Source struct{

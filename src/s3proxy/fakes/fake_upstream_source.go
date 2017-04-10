@@ -11,7 +11,7 @@ import (
 	"path"
 	"github.com/karlseguin/ccache"
 	"time"
-	"context"
+	"golang.org/x/net/context"
 )
 
 type FakeUpstreamSource struct {

@@ -15,8 +15,8 @@ import (
 	"github.com/karlseguin/ccache"
 	"path"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"context"
 	"s3proxy/context"
+	"golang.org/x/net/context"
 )
 
 var log = logging.MustGetLogger("s3proxy")
