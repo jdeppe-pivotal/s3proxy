@@ -15,7 +15,6 @@ import (
 	"github.com/karlseguin/ccache"
 	"path"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3"
 )
 
 var log = logging.MustGetLogger("s3proxy")
@@ -187,7 +186,7 @@ func (this S3Cache) validateEntry(uri string) {
 	meta, err := this.source.GetMeta(uri)
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
-			if awsErr.Code() == s3.ErrCodeNoSuchKey {
+			if awsErr.Code() == "NotFound" {
 				log.Info("Upstream not found for %s", uri)
 				this.Delete(uri)
 			}
