@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"github.com/karlseguin/ccache"
 	"path"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/s3"
 )
 
 var log = logging.MustGetLogger("s3proxy")
@@ -184,7 +186,14 @@ func (this S3Cache) validateEntry(uri string) {
 	// Get current Meta
 	meta, err := this.source.GetMeta(uri)
 	if err != nil {
-		log.Debugf("Unable to get meta: %s", err)
+		if awsErr, ok := err.(awserr.Error); ok {
+			if awsErr.Code() == s3.ErrCodeNoSuchKey {
+				log.Info("Upstream not found for %s", uri)
+				this.Delete(uri)
+			}
+		} else {
+			log.Debugf("Unable to get meta: %s", err)
+		}
 		return
 	}
 
