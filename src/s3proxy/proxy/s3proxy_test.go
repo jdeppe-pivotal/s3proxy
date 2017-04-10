@@ -125,7 +125,6 @@ var _ = Describe("S3Proxy test suite", func() {
 
 			body, err := ioutil.ReadAll(rr.Body)
 			Expect(err).To(BeNil())
-			Expect(len(body) > 0).To(BeTrue())
 			Expect(len(body) < 3000000).To(BeTrue())
 		})
 
@@ -151,7 +150,6 @@ var _ = Describe("S3Proxy test suite", func() {
 
 			body, err := ioutil.ReadAll(rr.Body)
 			Expect(err).To(BeNil())
-			Expect(len(body) > 0).To(BeTrue())
 			Expect(len(body) < 3000000).To(BeTrue())
 
 			_, err = os.Stat(path.Join(cacheDir, "error", "500000"))
