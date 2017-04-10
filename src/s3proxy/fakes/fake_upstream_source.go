@@ -11,6 +11,7 @@ import (
 	"path"
 	"github.com/karlseguin/ccache"
 	"time"
+	"context"
 )
 
 type FakeUpstreamSource struct {
@@ -27,7 +28,7 @@ func NewFakeUpstreamSource(baseDir string, cache *ccache.LayeredCache) *FakeUpst
 	}
 }
 
-func (this *FakeUpstreamSource) Get(uri string) (*faulting.FaultingFile, *source.Meta, error) {
+func (this *FakeUpstreamSource) Get(ctx context.Context, uri string) (*faulting.FaultingFile, *source.Meta, error) {
 	parts := strings.Split(strings.TrimLeft(uri, "/"), "/")
 	size, _ := strconv.Atoi(parts[len(parts) - 1])
 

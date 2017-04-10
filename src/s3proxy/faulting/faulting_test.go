@@ -10,7 +10,13 @@ import (
 	"s3proxy/faulting"
 	"s3proxy/fakes"
 	"github.com/karlseguin/ccache"
+	"s3proxy/context"
+	"context"
 )
+
+func makeContext(id uint64) context.Context {
+	return context.WithValue(context.Background(), 0, &cache_context.Context{id})
+}
 
 var _ = Describe("When faulting in a file", func() {
 	Context("StreamingSource works", func() {
@@ -124,7 +130,7 @@ var _ = Describe("When faulting in a file", func() {
 
 			ff.SetBlockSize(11)
 
-			fr := faulting.NewFaultingReader(ff)
+			fr := faulting.NewFaultingReader(makeContext(0), ff)
 			buf := make([]byte, 10)
 
 			var wg sync.WaitGroup
@@ -152,7 +158,7 @@ var _ = Describe("When faulting in a file", func() {
 			Expect(err).To(BeNil())
 
 			ff.SetBlockSize(11)
-			fr := faulting.NewFaultingReader(ff)
+			fr := faulting.NewFaultingReader(makeContext(1), ff)
 
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -188,7 +194,7 @@ var _ = Describe("When faulting in a file", func() {
 			ff, err := faulting.NewFaultingFile(ss, cacheFile.Name(), int64(len(ss.Content)), sCache)
 			Expect(err).To(BeNil())
 
-			fr := faulting.NewFaultingReader(ff)
+			fr := faulting.NewFaultingReader(makeContext(3), ff)
 
 			var wg sync.WaitGroup
 			wg.Add(1)

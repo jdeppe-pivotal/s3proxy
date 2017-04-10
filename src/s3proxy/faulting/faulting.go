@@ -9,6 +9,8 @@ import (
 	"github.com/karlseguin/ccache"
 	"strconv"
 	"github.com/op/go-logging"
+	"context"
+	"s3proxy/context"
 )
 
 const BLOCK_SIZE = 1024 * 1024
@@ -18,12 +20,14 @@ var log = logging.MustGetLogger("s3proxy")
 type FaultingReader struct {
 	faultingFile	*FaultingFile
 	bytesRead		int64
+	context         context.Context
 }
 
-func NewFaultingReader(f *FaultingFile) *FaultingReader {
+func NewFaultingReader(ctx context.Context, f *FaultingFile) *FaultingReader {
 	return &FaultingReader{
 		faultingFile: f,
 		bytesRead: 0,
+		context: ctx,
 	}
 }
 
@@ -34,7 +38,7 @@ func (this *FaultingReader) Read(p []byte) (int, error) {
 
 	// Calculate which block we need
 	index := int(this.bytesRead / int64(this.faultingFile.BlockSize))
-	faultedBlock, err := this.faultingFile.GetBlock(index)
+	faultedBlock, err := this.faultingFile.GetBlock(this.context, index)
 	if err != nil {
 		return 0, err
 	}
@@ -103,22 +107,23 @@ func (this *FaultingFile) SetBlockSize(blockSize int) {
 	this.BlockSize = blockSize
 }
 
-func (this *FaultingFile) GetBlock(i int) ([]byte, error) {
+func (this *FaultingFile) GetBlock(ctx context.Context, i int) ([]byte, error) {
 	if this.UpstreamErr != nil {
 		return nil, this.UpstreamErr
 	}
 
+	ctxValue := ctx.Value(0).(*cache_context.Context)
 	beenWaiting := false
 	for i >= this.BlockCount {
 		beenWaiting = true
-		log.Debugf("--->>> Waiting for block %d - only have %d", i+1, this.BlockCount)
+		log.Debugf("[%d] --->>> Waiting for block %d - only have %d", ctxValue.Sequence, i+1, this.BlockCount)
 		time.Sleep(1000 * time.Millisecond)
 		if this.UpstreamErr != nil {
 			return nil, this.UpstreamErr
 		}
 	}
 	if beenWaiting {
-		log.Debugf("===>>> Got block %d", i+1)
+		log.Debugf("[%d] ===>>> Got block %d", ctxValue.Sequence, i+1)
 	}
 
 	entry, err := this.BlockCache.Fetch(strconv.Itoa(i), time.Second, func() (interface{}, error) {return this.faultInBlock(i)})

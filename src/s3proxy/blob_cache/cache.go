@@ -64,7 +64,7 @@ func (this S3Cache) Get(ctx context.Context, uri string) (*faulting.FaultingRead
 	if entry, ok := this.cachedFiles[uri]; ok {
 		log.Debugf("[%d] Cache hit: %s", ctxValue.Sequence, uri)
 		this.RUnlock()
-		return faulting.NewFaultingReader(entry.faultingFile), nil
+		return faulting.NewFaultingReader(ctx, entry.faultingFile), nil
 	}
 	this.RUnlock()
 
@@ -75,11 +75,11 @@ func (this S3Cache) Get(ctx context.Context, uri string) (*faulting.FaultingRead
 	// while we were waiting.
 	if entry, ok := this.cachedFiles[uri]; ok {
 		log.Debugf("[%d] Cache hit: %s", ctxValue.Sequence, uri)
-		return faulting.NewFaultingReader(entry.faultingFile), nil
+		return faulting.NewFaultingReader(ctx, entry.faultingFile), nil
 	}
 
 	log.Debugf("[%d] Cache miss: %s", ctxValue.Sequence, uri)
-	faultingFile, meta, err := this.source.Get(uri)
+	faultingFile, meta, err := this.source.Get(ctx, uri)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (this S3Cache) Get(ctx context.Context, uri string) (*faulting.FaultingRead
 
 	this.cachedFiles[uri] = entry
 
-	return faulting.NewFaultingReader(faultingFile), nil
+	return faulting.NewFaultingReader(ctx, faultingFile), nil
 }
 
 func (this S3Cache) GetMeta(uri string) *source.Meta {

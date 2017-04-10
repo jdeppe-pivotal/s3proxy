@@ -10,6 +10,7 @@ import (
 	"github.com/karlseguin/ccache"
 	"github.com/op/go-logging"
 	"errors"
+	"context"
 )
 
 type S3Source struct{
@@ -33,7 +34,7 @@ func NewS3Source(cache *ccache.LayeredCache, region, cacheDir string) *S3Source 
 	}
 }
 
-func (this S3Source) Get(uri string) (*faulting.FaultingFile, *Meta, error) {
+func (this S3Source) Get(ctx context.Context, uri string) (*faulting.FaultingFile, *Meta, error) {
 
 	bucket, object := splitS3Uri(uri)
 

@@ -3,6 +3,7 @@ package source
 import (
 	"time"
 	"s3proxy/faulting"
+	"context"
 )
 
 type Meta struct {
@@ -14,7 +15,7 @@ type Meta struct {
 }
 
 type UpstreamSource interface {
-	Get(uri string) (*faulting.FaultingFile, *Meta, error)
+	Get(ctx context.Context, uri string) (*faulting.FaultingFile, *Meta, error)
 	GetMeta(uri string) (*Meta, error)
 	Directory(path string) ([]string, error)
 }
