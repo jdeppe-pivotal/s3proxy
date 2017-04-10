@@ -15,14 +15,16 @@ import (
 	"github.com/karlseguin/ccache"
 	"path"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"context"
+	"s3proxy/context"
 )
 
 var log = logging.MustGetLogger("s3proxy")
 
 type BlobCache interface {
-	Get(string) (*faulting.FaultingReader, error)
+	Get(context.Context, string) (*faulting.FaultingReader, error)
 	GetMeta(string) *source.Meta
-	Delete(string)
+	Delete(context.Context, string)
 	Directory(string) ([]string, error)
 }
 
@@ -53,12 +55,14 @@ func NewS3Cache(cache *ccache.LayeredCache, s source.UpstreamSource, cacheDir st
 	}
 }
 
-func (this S3Cache) Get(uri string) (*faulting.FaultingReader, error) {
-	this.validateEntry(uri)
+func (this S3Cache) Get(ctx context.Context, uri string) (*faulting.FaultingReader, error) {
+	this.validateEntry(ctx, uri)
+
+	ctxValue := ctx.Value(0).(*cache_context.Context)
 
 	this.RLock()
 	if entry, ok := this.cachedFiles[uri]; ok {
-		log.Debugf("Cache hit: %s", uri)
+		log.Debugf("[%d] Cache hit: %s", ctxValue.Sequence, uri)
 		this.RUnlock()
 		return faulting.NewFaultingReader(entry.faultingFile), nil
 	}
@@ -70,11 +74,11 @@ func (this S3Cache) Get(uri string) (*faulting.FaultingReader, error) {
 	// Once we have the lock, make sure someone else didn't already do this
 	// while we were waiting.
 	if entry, ok := this.cachedFiles[uri]; ok {
-		log.Debugf("Cache hit: %s", uri)
+		log.Debugf("[%d] Cache hit: %s", ctxValue.Sequence, uri)
 		return faulting.NewFaultingReader(entry.faultingFile), nil
 	}
 
-	log.Debugf("Cache miss: %s", uri)
+	log.Debugf("[%d] Cache miss: %s", ctxValue.Sequence, uri)
 	faultingFile, meta, err := this.source.Get(uri)
 	if err != nil {
 		return nil, err
@@ -85,7 +89,7 @@ func (this S3Cache) Get(uri string) (*faulting.FaultingReader, error) {
 
 	err = writeMeta(meta, faultingFile.Dst)
 	if err != nil {
-		log.Errorf("ERROR saving meta: %s", err)
+		log.Errorf("[%d] ERROR saving meta: %s", ctxValue.Sequence, err)
 	}
 
 	entry := &CacheEntry{
@@ -167,7 +171,7 @@ func writeMeta(meta *source.Meta, objectFile string) error {
 	return nil
 }
 
-func (this S3Cache) validateEntry(uri string) {
+func (this S3Cache) validateEntry(ctx context.Context, uri string) {
 	// Early out if we're not currently caching this object
 	this.RLock()
 	entry, found := this.cachedFiles[uri]
@@ -182,16 +186,18 @@ func (this S3Cache) validateEntry(uri string) {
 		return
 	}
 
+	ctxValue := ctx.Value(0).(*cache_context.Context)
+
 	// Get current Meta
 	meta, err := this.source.GetMeta(uri)
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == "NotFound" {
-				log.Infof("Upstream not found for %s", uri)
-				this.Delete(uri)
+				log.Infof("[%d] Upstream not found for %s", ctxValue.Sequence, uri)
+				this.Delete(ctx, uri)
 			}
 		} else {
-			log.Debugf("Unable to get meta: %s", err)
+			log.Debugf("[%d] Unable to get meta: %s", ctxValue.Sequence, err)
 		}
 		return
 	}
@@ -201,20 +207,21 @@ func (this S3Cache) validateEntry(uri string) {
 			meta.Size == entry.meta.Size &&
 			meta.LastModified == entry.meta.LastModified {
 		entry.meta.Expires = time.Now().Add(time.Duration(this.ttl) * time.Second)
-		log.Infof("Revalidated %s", uri)
+		log.Infof("[%d] Revalidated %s", ctxValue.Sequence, uri)
 		return
 	}
 
 	// If there is a change, then remove the currently cached entry
-	log.Debugf("Expiring %s", uri)
-	this.Delete(uri)
+	log.Debugf("[%d] Expiring %s", ctxValue.Sequence, uri)
+	this.Delete(ctx, uri)
 }
 
-func (this S3Cache) Delete(uri string) {
+func (this S3Cache) Delete(ctx context.Context, uri string) {
+	ctxValue := ctx.Value(0).(*cache_context.Context)
 	this.Lock()
 	defer this.Unlock()
 	if entry, ok := this.cachedFiles[uri]; ok {
-		log.Debugf("Deleting entry for request %s -> %s", uri, entry.faultingFile.Dst)
+		log.Debugf("[%d] Deleting entry for request %s -> %s", ctxValue.Sequence, uri, entry.faultingFile.Dst)
 		delete(this.cachedFiles, uri)
 
 		meta := fmt.Sprintf("%s._meta_", entry.faultingFile.Dst)

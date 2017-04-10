@@ -9,12 +9,16 @@ import (
 	"github.com/op/go-logging"
 	"strings"
 	"net"
+	"context"
+	"sync/atomic"
+	"s3proxy/context"
 )
 
 type S3Proxy struct {
 	cache blob_cache.BlobCache
 }
 
+var requestCounter uint64
 var log = logging.MustGetLogger("s3proxy")
 
 func NewS3Proxy(c blob_cache.BlobCache) *S3Proxy {
@@ -45,7 +49,14 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	r, err := this.cache.Get(req.URL.Path)
+	// Create a simple context to pass down to other functions
+	counter := atomic.AddUint64(&requestCounter, 1)
+	ctxValue := &cache_context.Context {
+		Sequence: counter,
+	}
+	ctx := context.WithValue(context.Background(), 0, ctxValue)
+
+	r, err := this.cache.Get(ctx, req.URL.Path)
 	meta := this.cache.GetMeta(req.URL.Path)
 
 	defer r.Close()
@@ -78,20 +89,26 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 		if e, ok := err.(*net.OpError); ok {
 			if e.Op != "write" {
 				log.Errorf("Error streaming %s: %s", req.URL.Path, e.Err)
-				this.cache.Delete(req.URL.Path)
+				this.cache.Delete(ctx, req.URL.Path)
 			}
 		} else {
 			log.Errorf("Error streaming %s: %s", req.URL.Path, err)
-			this.cache.Delete(req.URL.Path)
+			this.cache.Delete(ctx, req.URL.Path)
 		}
 	}
 }
 
 func (this *S3Proxy) Delete(w http.ResponseWriter, req *http.Request) {
+	counter := atomic.AddUint64(&requestCounter, 1)
+	ctxValue := &cache_context.Context {
+		Sequence: counter,
+	}
+	ctx := context.WithValue(context.Background(), 0, ctxValue)
+
 	uri := req.URL.Path
 	uri = strings.TrimPrefix(uri, "/admin")
-	log.Infof("Deleted: %s", uri)
+	log.Infof("[%d] Deleted: %s", counter, uri)
 
-	this.cache.Delete(uri)
+	this.cache.Delete(ctx, uri)
 	w.WriteHeader(http.StatusNoContent)
 }

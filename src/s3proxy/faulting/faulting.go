@@ -108,11 +108,17 @@ func (this *FaultingFile) GetBlock(i int) ([]byte, error) {
 		return nil, this.UpstreamErr
 	}
 
+	beenWaiting := false
 	for i >= this.BlockCount {
-		time.Sleep(100 * time.Millisecond)
+		beenWaiting = true
+		log.Debugf("--->>> Waiting for block %d - only have %d", i+1, this.BlockCount)
+		time.Sleep(1000 * time.Millisecond)
 		if this.UpstreamErr != nil {
 			return nil, this.UpstreamErr
 		}
+	}
+	if beenWaiting {
+		log.Debugf("===>>> Got block %d", i+1)
 	}
 
 	entry, err := this.BlockCache.Fetch(strconv.Itoa(i), time.Second, func() (interface{}, error) {return this.faultInBlock(i)})
