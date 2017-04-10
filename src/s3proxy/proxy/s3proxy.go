@@ -32,12 +32,19 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	log.Infof("Requesting %s", req.URL.Path)
+	// Create a simple context to pass down to other functions
+	counter := atomic.AddUint64(&requestCounter, 1)
+	ctxValue := &cache_context.Context {
+		Sequence: counter,
+	}
+	ctx := context.WithValue(context.Background(), 0, ctxValue)
+
+	log.Infof("[%d] Requesting %s", counter, req.URL.Path)
 
 	if strings.HasSuffix(req.URL.Path, "/") {
 		dirs, err := this.cache.Directory(req.URL.Path)
 		if err != nil {
-			log.Errorf("Unable to return directory: %s", err)
+			log.Errorf("[%d] Unable to return directory: %s", counter, err)
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -48,13 +55,6 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 		}
 		return
 	}
-
-	// Create a simple context to pass down to other functions
-	counter := atomic.AddUint64(&requestCounter, 1)
-	ctxValue := &cache_context.Context {
-		Sequence: counter,
-	}
-	ctx := context.WithValue(context.Background(), 0, ctxValue)
 
 	r, err := this.cache.Get(ctx, req.URL.Path)
 	meta := this.cache.GetMeta(req.URL.Path)
@@ -67,10 +67,10 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 			if awsErr.Code() == "NotFound" {
 				code = http.StatusNotFound
 			} else {
-				log.Errorf("AWS Unclassified error: %+v", awsErr)
+				log.Errorf("[%d] AWS Unclassified error: %+v", counter, awsErr)
 			}
 		} else {
-			log.Errorf("ERROR: %+v", err)
+			log.Errorf("[%d] ERROR: %+v", counter, err)
 		}
 		w.WriteHeader(code)
 		return
@@ -88,11 +88,11 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 		// thus result in the cache entry being removed.
 		if e, ok := err.(*net.OpError); ok {
 			if e.Op != "write" {
-				log.Errorf("Error streaming %s: %s", req.URL.Path, e.Err)
+				log.Errorf("[%d] Error streaming %s: %s", counter, req.URL.Path, e.Err)
 				this.cache.Delete(ctx, req.URL.Path)
 			}
 		} else {
-			log.Errorf("Error streaming %s: %s", req.URL.Path, err)
+			log.Errorf("[%d] Error streaming %s: %s", counter, req.URL.Path, err)
 			this.cache.Delete(ctx, req.URL.Path)
 		}
 	}
