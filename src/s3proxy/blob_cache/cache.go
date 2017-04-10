@@ -187,7 +187,7 @@ func (this S3Cache) validateEntry(uri string) {
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == "NotFound" {
-				log.Info("Upstream not found for %s", uri)
+				log.Infof("Upstream not found for %s", uri)
 				this.Delete(uri)
 			}
 		} else {
