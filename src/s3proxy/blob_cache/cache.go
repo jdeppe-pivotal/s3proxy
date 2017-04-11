@@ -55,7 +55,7 @@ func NewS3Cache(cache *ccache.LayeredCache, s source.UpstreamSource, cacheDir st
 	}
 }
 
-func (this S3Cache) Get(ctx context.Context, uri string) (*faulting.FaultingReader, error) {
+func (this *S3Cache) Get(ctx context.Context, uri string) (*faulting.FaultingReader, error) {
 	this.validateEntry(ctx, uri)
 
 	ctxValue := ctx.Value(0).(*cache_context.Context)
@@ -103,7 +103,7 @@ func (this S3Cache) Get(ctx context.Context, uri string) (*faulting.FaultingRead
 	return faulting.NewFaultingReader(ctx, faultingFile), nil
 }
 
-func (this S3Cache) GetMeta(uri string) *source.Meta {
+func (this *S3Cache) GetMeta(uri string) *source.Meta {
 	this.RLock()
 	defer this.RUnlock()
 	if entry, ok := this.cachedFiles[uri]; ok {
@@ -112,7 +112,7 @@ func (this S3Cache) GetMeta(uri string) *source.Meta {
 	return nil
 }
 
-func (this S3Cache) RecoverMeta() {
+func (this *S3Cache) RecoverMeta() {
 	filepath.Walk(this.cacheDir, func(path string, info os.FileInfo, err error) error {
 		if strings.Contains(path, "_meta_") {
 			metaJson, err := ioutil.ReadFile(path)
@@ -132,13 +132,13 @@ func (this S3Cache) RecoverMeta() {
 			objectPath = strings.TrimSuffix(objectPath, "._meta_")
 			log.Debugf("Adding meta %s", objectPath)
 			log.Debugf("    %+v", m)
-			this.addMeta(m, objectPath)
+			this.AddMeta(m, objectPath)
 		}
 		return nil
 	})
 }
 
-func (this S3Cache) addMeta(meta *source.Meta, objectPath string) {
+func (this *S3Cache) AddMeta(meta *source.Meta, objectPath string) {
 	dst := path.Join(this.cacheDir, objectPath)
 	cc := this.blockCache.GetOrCreateSecondaryCache(objectPath)
 	ff, err := faulting.NewFaultingFile(nil, dst, meta.Size, cc)
@@ -171,7 +171,7 @@ func writeMeta(meta *source.Meta, objectFile string) error {
 	return nil
 }
 
-func (this S3Cache) validateEntry(ctx context.Context, uri string) {
+func (this *S3Cache) validateEntry(ctx context.Context, uri string) {
 	// Early out if we're not currently caching this object
 	this.RLock()
 	entry, found := this.cachedFiles[uri]
@@ -216,7 +216,7 @@ func (this S3Cache) validateEntry(ctx context.Context, uri string) {
 	this.Delete(ctx, uri)
 }
 
-func (this S3Cache) Delete(ctx context.Context, uri string) {
+func (this *S3Cache) Delete(ctx context.Context, uri string) {
 	ctxValue := ctx.Value(0).(*cache_context.Context)
 	this.Lock()
 	defer this.Unlock()
@@ -231,6 +231,6 @@ func (this S3Cache) Delete(ctx context.Context, uri string) {
 	}
 }
 
-func (this S3Cache) Directory(path string) ([]string, error) {
+func (this *S3Cache) Directory(path string) ([]string, error) {
 	return this.source.Directory(path)
 }
