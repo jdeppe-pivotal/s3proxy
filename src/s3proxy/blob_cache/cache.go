@@ -31,20 +31,25 @@ type BlobCache interface {
 type S3Cache struct {
 	sync.RWMutex
 	source      source.UpstreamSource
-	cachedFiles map[string]*CacheEntry
+	cachedFiles map[string]*cacheEntryWrapper
 	cacheDir    string
 	ttl         int
 	blockCache  *ccache.LayeredCache
 }
 
-type CacheEntry struct {
+type cacheEntry struct {
 	key          string
 	meta         *source.Meta
 	faultingFile *faulting.FaultingFile
 }
 
+type cacheEntryWrapper struct {
+	sync.RWMutex
+	entry *cacheEntry
+}
+
 func NewS3Cache(cache *ccache.LayeredCache, s source.UpstreamSource, cacheDir string, ttl int) *S3Cache {
-	c := make(map[string]*CacheEntry)
+	c := make(map[string]*cacheEntryWrapper)
 
 	return &S3Cache{
 		source: s,
@@ -61,10 +66,10 @@ func (this *S3Cache) Get(ctx context.Context, uri string) (*faulting.FaultingRea
 	ctxValue := ctx.Value(0).(*cache_context.Context)
 
 	this.RLock()
-	if entry, ok := this.cachedFiles[uri]; ok {
+	if wrapper, ok := this.cachedFiles[uri]; ok && wrapper.entry != nil {
 		log.Debugf("[%d] Cache hit: %s", ctxValue.Sequence, uri)
 		this.RUnlock()
-		return faulting.NewFaultingReader(ctx, entry.faultingFile), nil
+		return faulting.NewFaultingReader(ctx, wrapper.entry.faultingFile), nil
 	}
 	this.RUnlock()
 
@@ -73,9 +78,9 @@ func (this *S3Cache) Get(ctx context.Context, uri string) (*faulting.FaultingRea
 
 	// Once we have the lock, make sure someone else didn't already do this
 	// while we were waiting.
-	if entry, ok := this.cachedFiles[uri]; ok {
+	if wrapper, ok := this.cachedFiles[uri]; ok && wrapper.entry != nil {
 		log.Debugf("[%d] Cache hit: %s", ctxValue.Sequence, uri)
-		return faulting.NewFaultingReader(ctx, entry.faultingFile), nil
+		return faulting.NewFaultingReader(ctx, wrapper.entry.faultingFile), nil
 	}
 
 	log.Debugf("[%d] Cache miss: %s", ctxValue.Sequence, uri)
@@ -92,13 +97,19 @@ func (this *S3Cache) Get(ctx context.Context, uri string) (*faulting.FaultingRea
 		log.Errorf("[%d] ERROR saving meta: %s", ctxValue.Sequence, err)
 	}
 
-	entry := &CacheEntry{
+	entry := &cacheEntry{
 		key: uri,
 		meta: meta,
 		faultingFile: faultingFile,
 	}
 
-	this.cachedFiles[uri] = entry
+	if wrapper, ok := this.cachedFiles[uri]; ok {
+		wrapper.entry = entry
+	} else {
+		this.cachedFiles[uri] = &cacheEntryWrapper{
+			entry: entry,
+		}
+	}
 
 	return faulting.NewFaultingReader(ctx, faultingFile), nil
 }
@@ -106,8 +117,8 @@ func (this *S3Cache) Get(ctx context.Context, uri string) (*faulting.FaultingRea
 func (this *S3Cache) GetMeta(uri string) *source.Meta {
 	this.RLock()
 	defer this.RUnlock()
-	if entry, ok := this.cachedFiles[uri]; ok {
-		return entry.meta
+	if wrapper, ok := this.cachedFiles[uri]; ok && wrapper.entry != nil {
+		return wrapper.entry.meta
 	}
 	return nil
 }
@@ -148,12 +159,14 @@ func (this *S3Cache) AddMeta(meta *source.Meta, objectPath string) {
 	}
 	ff.BlockCount = int((ff.Size / int64(ff.BlockSize)) + 1)
 
-	entry := &CacheEntry{
+	entry := &cacheEntry{
 		key: objectPath,
 		meta: meta,
 		faultingFile: ff,
 	}
-	this.cachedFiles[objectPath] = entry
+	this.cachedFiles[objectPath] = &cacheEntryWrapper{
+		entry: entry,
+	}
 }
 
 func writeMeta(meta *source.Meta, objectFile string) error {
@@ -174,19 +187,27 @@ func writeMeta(meta *source.Meta, objectFile string) error {
 func (this *S3Cache) validateEntry(ctx context.Context, uri string) {
 	// Early out if we're not currently caching this object
 	this.RLock()
-	entry, found := this.cachedFiles[uri]
+	wrapper, found := this.cachedFiles[uri]
 	this.RUnlock()
 
-	if ! found {
+	ctxValue := ctx.Value(0).(*cache_context.Context)
+
+	if ! found || wrapper.entry == nil {
 		return
 	}
 
 	// Has this entry already expired?
-	if entry.meta.Expires.After(time.Now()) {
+	if wrapper.entry.meta.Expires.After(time.Now()) {
 		return
 	}
 
-	ctxValue := ctx.Value(0).(*cache_context.Context)
+	wrapper.Lock()
+	defer wrapper.Unlock()
+
+	// Somebody else might have done this while we were waiting for the lock
+	if wrapper.entry == nil {
+		return
+	}
 
 	// Get current Meta
 	meta, err := this.source.GetMeta(uri)
@@ -203,10 +224,10 @@ func (this *S3Cache) validateEntry(ctx context.Context, uri string) {
 	}
 
 	// Check the ETag, Size and LastModified
-	if meta.ETag == entry.meta.ETag &&
-			meta.Size == entry.meta.Size &&
-			meta.LastModified == entry.meta.LastModified {
-		entry.meta.Expires = time.Now().Add(time.Duration(this.ttl) * time.Second)
+	if meta.ETag == wrapper.entry.meta.ETag &&
+			meta.Size == wrapper.entry.meta.Size &&
+			meta.LastModified == wrapper.entry.meta.LastModified {
+		wrapper.entry.meta.Expires = time.Now().Add(time.Duration(this.ttl) * time.Second)
 		log.Infof("[%d] Revalidated %s", ctxValue.Sequence, uri)
 		return
 	}
@@ -218,16 +239,22 @@ func (this *S3Cache) validateEntry(ctx context.Context, uri string) {
 
 func (this *S3Cache) Delete(ctx context.Context, uri string) {
 	ctxValue := ctx.Value(0).(*cache_context.Context)
-	this.Lock()
-	defer this.Unlock()
-	if entry, ok := this.cachedFiles[uri]; ok {
-		log.Debugf("[%d] Deleting entry for request %s -> %s", ctxValue.Sequence, uri, entry.faultingFile.Dst)
-		delete(this.cachedFiles, uri)
 
-		meta := fmt.Sprintf("%s._meta_", entry.faultingFile.Dst)
-		os.Remove(entry.faultingFile.Dst)
+	this.RLock()
+	defer this.RUnlock()
+
+	if wrapper, ok := this.cachedFiles[uri]; ok {
+		if wrapper.entry == nil {
+			return
+		}
+		log.Debugf("[%d] Deleting entry for request %s -> %s", ctxValue.Sequence, uri, wrapper.entry.faultingFile.Dst)
+
+		meta := fmt.Sprintf("%s._meta_", wrapper.entry.faultingFile.Dst)
+		os.Remove(wrapper.entry.faultingFile.Dst)
 		os.Remove(meta)
 		this.blockCache.DeleteAll(uri)
+
+		wrapper.entry = nil
 	}
 }
 

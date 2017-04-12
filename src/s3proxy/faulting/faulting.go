@@ -9,7 +9,6 @@ import (
 	"github.com/karlseguin/ccache"
 	"strconv"
 	"github.com/op/go-logging"
-	"s3proxy/context"
 	"golang.org/x/net/context"
 )
 
@@ -112,18 +111,11 @@ func (this *FaultingFile) GetBlock(ctx context.Context, i int) ([]byte, error) {
 		return nil, this.UpstreamErr
 	}
 
-	ctxValue := ctx.Value(0).(*cache_context.Context)
-	beenWaiting := false
 	for i >= this.BlockCount {
-		beenWaiting = true
-		log.Debugf("[%d] --->>> Waiting for block %d - only have %d", ctxValue.Sequence, i+1, this.BlockCount)
 		time.Sleep(1000 * time.Millisecond)
 		if this.UpstreamErr != nil {
 			return nil, this.UpstreamErr
 		}
-	}
-	if beenWaiting {
-		log.Debugf("[%d] ===>>> Got block %d", ctxValue.Sequence, i+1)
 	}
 
 	entry, err := this.BlockCache.Fetch(strconv.Itoa(i), time.Second, func() (interface{}, error) {return this.faultInBlock(i)})
