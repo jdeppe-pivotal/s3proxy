@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"github.com/go-zoo/bone"
+	_ "net/http/pprof"
 )
 
 var log = logging.MustGetLogger("s3proxy")
@@ -50,7 +51,10 @@ func main() {
 	m.Delete("/*", http.HandlerFunc(pxy.Delete))
 	m.Get("/*", http.HandlerFunc(pxy.Handler))
 
-	//http.HandleFunc("/", pxy.Handler)
+	go func() {
+		http.ListenAndServe(":6060", nil)
+	}()
+
 	http.ListenAndServe(fmt.Sprintf(":%d", config.port), m)
 }
 
