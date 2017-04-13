@@ -51,6 +51,9 @@ func (this *FaultingReader) Read(p []byte) (int, error) {
 
 	n := copy(p, faultedBlock[i:blockEnd])
 
+	ctxValue := this.context.Value(0).(*cache_context.Context)
+	log.Debugf("[%d] --->>> Copied %d [%d:%d]", ctxValue.Sequence, n, i, blockEnd)
+
 	this.bytesRead += int64(n)
 
 	return n, nil
