@@ -57,14 +57,12 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	r, err := this.cache.Get(ctx, req.URL.Path)
-	meta := this.cache.GetMeta(req.URL.Path)
-
 	defer r.Close()
 
 	if err != nil {
 		code := http.StatusInternalServerError
 		if awsErr, ok := err.(awserr.Error); ok {
-			if awsErr.Code() == "NotFound" {
+			if awsErr.Code() == "NotFound" || awsErr.Code() == "NoSuchKey" {
 				code = http.StatusNotFound
 			} else {
 				log.Errorf("[%d] AWS Unclassified error: %+v", counter, awsErr)
@@ -76,6 +74,7 @@ func (this *S3Proxy) Handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	meta := this.cache.GetMeta(req.URL.Path)
 	if meta != nil {
 		w.Header().Set("Content-length", fmt.Sprintf("%d", meta.Size))
 		w.Header().Set("Content-type", meta.ContentType)
